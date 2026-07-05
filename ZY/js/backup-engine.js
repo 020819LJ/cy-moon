@@ -207,20 +207,18 @@
         flags = flags || {};
         var p = [];
         if (!flags.inclStickers) p.push('stickerLibrary', 'myStickerLibrary');
-        if (!flags.inclThemes) p.push('backgroundGallery', 'chatBackground', 'partnerAvatar', 'myAvatar', 'playerCover');
+        if (!flags.inclThemes) p.push('backgroundGallery', 'chatBackground', 'partnerAvatar', 'myAvatar', 'playerCover', 'customThemes', 'themeSchemes');
         if (!flags.inclMsgs) p.push('chatMessages');
         if (!flags.inclSet) p.push('chatSettings', 'partnerPersonas', 'showPartnerNameInChat');
         if (!flags.inclCustom) p.push('customReplies', 'customPokes', 'customStatuses', 'customMottos', 'customIntros', 'customEmojis', 'customReplyGroups', 'customPokeGroups', 'customStatusGroups');
-        if (!flags.inclThemes) p.push('customThemes', 'themeSchemes');
         if (!flags.inclDg) p.push('dg_custom_data', 'dg_status_pool', 'weekly_fortune', 'daily_fortune', 'customWeather_', 'dg_header_bg', 'dg_overlay_bg', 'dg_overlay_bg_tint', '_dgUserSalt', 'dailyFortuneNotes_');
         // 新增模块
-        if (!flags.inclHome) p.push('home_page_bg', 'home_card_bg', 'home_icon_color', 'home_icon_color_name', 'home_hero_subtitle', 'home_theme', 'home_theme_custom', 'home_app_icons', 'home_app_order', 'home_session_bind', 'home_avatar_sync', 'home_bg_sync', 'home_card_bg_custom', 'home_page_bg_custom', 'home_profile_', 'profile_me', 'home_avatar_me');
+        if (!flags.inclHome) p.push('home_page_bg', 'home_card_bg', 'home_icon_color', 'home_icon_color_name', 'home_hero_subtitle', 'home_theme', 'home_theme_custom', 'home_app_icons', 'home_app_order', 'home_session_bind', 'home_avatar_sync', 'home_bg_sync', 'home_card_bg_custom', 'home_page_bg_custom', 'home_page_bg_presets', 'home_card_bg_presets', 'home_profile_', 'profile_', 'home_avatar_');
         if (!flags.inclMoyu) p.push('moyuRecords', 'currentMoyuRecord', 'moyuWorkSession', 'moyuLocations', 'moyuActivities', 'moyuUnread');
         if (!flags.inclShop) p.push('shop_balance', 'shop_search_history', 'shop_gift_cabinet', 'shop_products', 'shop_cart', 'shop_orders');
-        if (!flags.inclMoments) p.push('moments_data', 'moments_visitor_records', 'moments_friends', 'moments_reply_speed', 'moments_reply_count_min', 'moments_reply_count_max', 'moments_friend_like', 'moments_cover', 'moments_visitor_last_online', 'moments_visitor_last_viewed_count', 'home_avatar_me', 'profile_me');
-        if (!flags.inclMap) p.push('_mapData');
+        if (!flags.inclMoments) p.push('moments_data', 'moments_visitor_records', 'moments_friends', 'moments_reply_speed', 'moments_reply_count_min', 'moments_reply_count_max', 'moments_friend_like', 'moments_cover', 'moments_visitor_last_online', 'moments_visitor_last_viewed_count', 'home_avatar_', 'profile_');
         if (!flags.inclTaPhone) p.push('ta_phone_collections');
-        if (!flags.inclPet) p.push('petGameState', 'pixelPetGame');
+        if (!flags.inclPet) p.push('petGameState', 'pixelPetGame', 'luelue_pet_game');
         if (!flags.inclDiary) p.push('diaryTodos', 'diaryHabits', 'diaryHabitRecords', 'diaryPeriodRecords', 'diaryAnniversaries', 'diaryTodoCategories', 'diaryPeriodLastReminderDate');
         if (!flags.inclAccounting) p.push('accountingRecords', 'accountingLabels');
         if (!flags.inclEnvelope) p.push('envelopeData');
@@ -229,10 +227,10 @@
         if (!flags.inclCall) p.push('callFeatureEnabled', 'callWindowPos', 'callWindowSize', 'callPillPos', 'callBgImageData');
         if (!flags.inclGroupChat) p.push('groupChatSettings', 'gca_');
         if (!flags.inclSpark) p.push('chat_streak_data');
-        if (!flags.inclFeatures) p.push('pokeSym_my', 'pokeSym_partner', 'pokeSym_my_custom', 'pokeSym_partner_custom', 'headerAlwaysClear', 'keepaliveAudioEnabled', 'immersive_mode');
+        if (!flags.inclFeatures) p.push('pokeSym_my', 'pokeSym_partner', 'pokeSym_my_custom', 'pokeSym_partner_custom', 'headerAlwaysClear', 'keepaliveAudioEnabled', 'immersive_mode', 'dailyGreetingShown');
         if (!flags.inclCoreExtra) p.push('kaomojiGroups', 'kaomojiLibrary', 'customVoices', 'customVoiceGroups', 'customStickerGroups', 'transferData', 'myPokes', 'lastSessionId', 'sessionList', 'disabledStickerItems', 'disabledReplyItems', 'exportReminderLastShown', 'notifEnabled');
-        if (!flags.inclOnboarding) p.push('tiSettings_showAvatar', 'tiSettings_customText', 'splashPledgeSigned_v3', 'tour_seen');
-        if (!flags.inclMusic) p.push('music_playlist', 'music_invite_prob', 'island_pos');
+        if (!flags.inclOnboarding) p.push('tiSettings_showAvatar', 'tiSettings_customText', 'tour_seen');
+        if (!flags.inclMusic) p.push('music_playlist', 'music_invite_prob', 'island_pos', 'music_play_mode');
         return p;
     }
 
@@ -363,7 +361,6 @@
 
     function shouldSkipKeyGroupChat(key, flags) {
         if (!key) return true;
-        if (key.indexOf('dg_header_bg') !== -1 || key.indexOf('dg_overlay_bg') !== -1) return true;
         var patterns = buildModuleSkipPatterns(flags || {});
         return patterns.some(function (p) { return key.indexOf(p) !== -1; });
     }
@@ -485,11 +482,11 @@
             inclThemes: true, inclDg: true, inclStickers: false,
             inclHome: true,
             inclMoyu: true, inclShop: true, inclMoments: true,
-            inclMap: true, inclTaPhone: true, inclPet: true,
+            inclTaPhone: true, inclPet: true,
             inclDiary: true, inclAccounting: true, inclEnvelope: true,
             inclMood: true, inclTarot: true, inclCall: true,
             inclGroupChat: true, inclSpark: true, inclFeatures: true,
-            inclCoreExtra: true, inclOnboarding: true
+            inclCoreExtra: true, inclOnboarding: true, inclMusic: true
         };
         var lfData = {};
         var keys = await localforage.keys();

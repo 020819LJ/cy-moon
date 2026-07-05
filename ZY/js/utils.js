@@ -403,7 +403,8 @@ async function exportAllData() {
                 inclSpark: true,
                 inclFeatures: true,
                 inclCoreExtra: true,
-                inclOnboarding: true
+                inclOnboarding: true,
+                inclMusic: true
             });
             const jsonString = ChatBackup.serializeBackupV4(payload);
             const dateStr = new Date().toISOString().slice(0, 10);
@@ -454,6 +455,12 @@ async function importAllData(file) {
                 localStorageNeedles: ['groupChatSettings']
             },
             {
+                id: 'home',
+                label: '主页外观 / 头像 / 资料',
+                indexedDBNeedles: ['home_card_bg_custom'],
+                localStorageNeedles: ['home_page_bg', 'home_card_bg', 'home_icon_color', 'home_icon_color_name', 'home_hero_subtitle', 'home_theme', 'home_theme_custom', 'home_app_icons', 'home_app_order', 'home_session_bind', 'home_avatar_sync', 'home_bg_sync', 'home_page_bg_custom', 'home_avatar_', 'profile_', 'home_page_bg_presets', 'home_card_bg_presets']
+            },
+            {
                 id: 'replies',
                 label: '回复 / 拍一拍 / 氛围',
                 indexedDBNeedles: ['customReplies', 'customPokes', 'customStatuses', 'customMottos', 'customIntros', 'customEmojis', 'customReplyGroups', 'customPokeGroups', 'customStatusGroups'],
@@ -461,8 +468,8 @@ async function importAllData(file) {
             },
             {
                 id: 'stickers',
-                label: '表情库（贴纸）',
-                indexedDBNeedles: ['stickerLibrary', 'myStickerLibrary'],
+                label: '表情库（贴纸 / 颜文字 / 语音）',
+                indexedDBNeedles: ['stickerLibrary', 'myStickerLibrary', 'kaomojiLibrary', 'kaomojiGroups', 'customStickerGroups', 'customVoices', 'customVoiceGroups'],
                 localStorageNeedles: ['disabledStickerItems']
             },
             {
@@ -481,7 +488,7 @@ async function importAllData(file) {
                 id: 'dg',
                 label: '每日公告 / 运势 / 天气',
                 indexedDBNeedles: [],
-                localStorageNeedles: ['dg_custom_data', 'dg_status_pool', 'weekly_fortune', 'daily_fortune'],
+                localStorageNeedles: ['dg_custom_data', 'dg_status_pool', 'weekly_fortune', 'daily_fortune', 'dg_header_bg', 'dg_overlay_bg', 'dg_overlay_bg_tint', '_dgUserSalt', 'dailyFortuneNotes_'],
                 localStoragePrefixes: ['customWeather_']
             },
             {
@@ -509,10 +516,52 @@ async function importAllData(file) {
                 localStorageNeedles: []
             },
             {
+                id: 'pet',
+                label: '宠物 / 像素宠物',
+                indexedDBNeedles: [],
+                localStorageNeedles: ['luelue_pet_game', 'pixelPetGame']
+            },
+            {
+                id: 'spark',
+                label: '聊天火花',
+                indexedDBNeedles: [],
+                localStorageNeedles: ['chat_streak_data']
+            },
+            {
+                id: 'call',
+                label: '通话设置',
+                indexedDBNeedles: ['callBgImageData'],
+                localStorageNeedles: ['callFeatureEnabled', 'callWindowPos', 'callWindowSize', 'callPillPos']
+            },
+            {
+                id: 'moyu',
+                label: '摸鱼记录',
+                indexedDBNeedles: ['moyuRecords', 'currentMoyuRecord', 'moyuWorkSession', 'moyuLocations', 'moyuActivities', 'moyuUnread'],
+                localStorageNeedles: []
+            },
+            {
+                id: 'tarot',
+                label: '塔罗占卜',
+                indexedDBNeedles: ['diviHistory', 'customTarotDeck', 'customTarotEnabled'],
+                localStorageNeedles: []
+            },
+            {
+                id: 'settings',
+                label: '功能开关 / 新手引导 / 其他',
+                indexedDBNeedles: ['transferData', 'myPokes', 'lastSessionId', 'sessionList'],
+                localStorageNeedles: ['headerAlwaysClear', 'keepaliveAudioEnabled', 'immersive_mode', 'notifEnabled', 'exportReminderLastShown', 'tiSettings_showAvatar', 'tiSettings_customText', 'tour_seen', 'dailyGreetingShown']
+            },
+            {
                 id: 'taPhone',
                 label: 'TA的手机',
                 indexedDBNeedles: [],
                 localStorageNeedles: ['ta_phone_collections']
+            },
+            {
+                id: 'music',
+                label: '一起听歌 / 排行榜 / 听歌记录',
+                indexedDBNeedles: [],
+                localStorageNeedles: ['music_playlist', 'music_playlist_leaderboard', 'music_invite_prob', 'island_pos', 'music_play_mode']
             }
         ];
 

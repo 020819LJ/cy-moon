@@ -59,9 +59,41 @@
 
     var ISLAND_MIN_Y = 60;
 
+    // ★ 播放模式
+    var PLAY_MODE_SEQUENTIAL = 'sequential';
+    var PLAY_MODE_SHUFFLE = 'shuffle';
+    var PLAY_MODE_REPEAT_ONE = 'repeat-one';
+    var playMode = PLAY_MODE_SEQUENTIAL;
+    var shuffleOrder = [];
+
+    // ★ 一起听模式
+    var togetherMode = false;          // 是否正在一起听
+    var soloListener = 'me';           // ★ 独自听歌时谁在听: 'me' | 'partner'
+    var partnerInviteTimeout = null;   // 邀请超时计时器
+    var partnerActionTimer = null;     // 梦角行为计时器
+    var PARTNER_ACTION_MIN = 15000;    // 梦角行为最小间隔 15秒
+    var PARTNER_ACTION_MAX = 60000;    // 梦角行为最大间隔 60秒
+    var INVITE_TIMEOUT = 30000;        // 邀请超时 30秒
+
+    // ★ 排行榜数据
+    var leaderboardData = {
+        myTop: {},           // { songId: count }
+        togetherTop: {},     // 一起听排行
+        partnerTop: {},      // 梦角听歌排行
+        totalListenTime: 0,  // 总听歌时长（秒）
+        myTotalTime: 0,
+        togetherTotalTime: 0,
+        partnerTotalTime: 0,
+        listenStartTime: 0   // 当前歌曲开始播放时间
+    };
+
+    // ★ 梦角虚拟听歌记录
+    var partnerListenHistory = [];
+
     // ======================== DOM 引用 ========================
     var $overlay, $panel, $closeBtn, $minimizeBtn, $uploadArea, $uploadInput, $zipInput;
     var $nowTitle, $nowArtist, $playBtn, $prevBtn, $nextBtn;
+    var $modeBtn, $modeText;
     var $volumeSlider, $progressBar, $curTime, $durTime;
     var $lyricsPreview, $playlistEl;
     var $island, $islandIcon, $islandTitle, $islandLyric, $islandClose;
@@ -70,6 +102,12 @@
     var $selectAllBtn, $deselectAllBtn, $deleteSelectedBtn;
     var $exportBtn, $batchDeleteBtn, $folderBtn, $zipBtn;
     var $storageBar, $storageText;
+    // ★ 新增元素
+    var $urlInput, $urlAddBtn;
+    var $inviteBtn, $leaderboardBtn;
+    var $modeStatus, $modeStatusText;
+    var $lbOverlay, $lbClose, $lbList;
+    var $partnerActionOverlay, $partnerActionIcon, $partnerActionTitle, $partnerActionSubtitle, $partnerActionOk;
 
     function cacheDOM() {
         $overlay        = document.getElementById('music-player-overlay');
@@ -84,6 +122,8 @@
         $playBtn        = document.getElementById('music-btn-play');
         $prevBtn        = document.getElementById('music-btn-prev');
         $nextBtn        = document.getElementById('music-btn-next');
+        $modeBtn        = document.getElementById('music-btn-mode');
+        $modeText       = document.getElementById('music-play-mode-text');
         $volumeSlider   = document.getElementById('music-volume-slider');
         $progressBar    = document.getElementById('music-progress-bar');
         $curTime        = document.getElementById('music-cur-time');
@@ -111,6 +151,21 @@
         $zipBtn         = document.getElementById('music-btn-zip');
         $storageBar     = document.getElementById('music-storage-bar');
         $storageText    = document.getElementById('music-storage-text');
+        // ★ 新增
+        $urlInput       = document.getElementById('music-url-input');
+        $urlAddBtn      = document.getElementById('music-btn-url-add');
+        $inviteBtn      = document.getElementById('music-btn-invite');
+        $leaderboardBtn = document.getElementById('music-btn-leaderboard');
+        $modeStatus     = document.getElementById('music-mode-status');
+        $modeStatusText = document.getElementById('music-mode-text');
+        $lbOverlay      = document.getElementById('music-leaderboard-overlay');
+        $lbClose        = document.getElementById('music-leaderboard-close');
+        $lbList         = document.getElementById('music-leaderboard-list');
+        $partnerActionOverlay    = document.getElementById('music-partner-action-overlay');
+        $partnerActionIcon       = document.getElementById('partner-action-icon');
+        $partnerActionTitle      = document.getElementById('partner-action-title');
+        $partnerActionSubtitle   = document.getElementById('partner-action-subtitle');
+        $partnerActionOk         = document.getElementById('partner-action-ok');
     }
 
     // ======================== LRC 解析 ========================
@@ -196,6 +251,17 @@
                 var stored = localStorage.getItem('CHAT_APP_V3_music_invite_prob');
                 if (stored !== null) inviteProbability = parseInt(stored, 10) || 0;
             }
+            // ★ 加载播放模式
+            var modeStored = localStorage.getItem('CHAT_APP_V3_music_play_mode');
+            if (modeStored && (modeStored === PLAY_MODE_SEQUENTIAL || modeStored === PLAY_MODE_SHUFFLE || modeStored === PLAY_MODE_REPEAT_ONE)) {
+                playMode = modeStored;
+            }
+        } catch(e) {}
+    }
+
+    function savePlayMode() {
+        try {
+            localStorage.setItem('CHAT_APP_V3_music_play_mode', playMode);
         } catch(e) {}
     }
 
@@ -309,7 +375,23 @@
         updateLyricsUI();
     }
 
-    function onAudioEnded() { playNext(); }
+    function onAudioEnded() {
+        if (playMode === PLAY_MODE_REPEAT_ONE) {
+            // ★ 单曲循环：重新播放当前歌曲
+            if (audioEl) {
+                recordListenDuration();
+                leaderboardData.listenStartTime = Date.now();
+                audioEl.currentTime = 0;
+                audioEl.play().then(function() {
+                    isPlaying = true;
+                    updatePlayButton();
+                    recordPlayCount(playlist[currentIndex]);
+                }).catch(function() {});
+            }
+        } else {
+            playNext();
+        }
+    }
 
     function onAudioLoaded() {
         if (!audioEl) return;
@@ -382,6 +464,8 @@
     // ======================== 歌曲播放控制 ========================
     function playSong(index) {
         if (index < 0 || index >= playlist.length) return;
+        // ★ 记录上一首听歌时长
+        recordListenDuration();
         currentIndex = index;
         var song = playlist[index];
 
@@ -399,14 +483,17 @@
         audio.volume = currentVolume;
         audio.play().then(function() {
             isPlaying = true;
+            leaderboardData.listenStartTime = Date.now();
             updatePlayButton();
             renderPlaylist();
             renderNowPlaying();
-            // ★ 只有最小化状态才显示灵动岛，否则弹窗正常显示
+            updateModeStatus();
             showDynamicIsland();
             if ($progressBar) $progressBar.value = 0;
             if ($curTime) $curTime.textContent = '0:00';
             updateLyricsUI();
+            // ★ 记录播放排行
+            recordPlayCount(song);
         }).catch(function(e) {
             console.warn('[MusicPlayer] 播放失败', e);
             notify('播放失败，请重试', 'error', 2000);
@@ -424,13 +511,17 @@
             return audio.play();
         }).then(function() {
             isPlaying = true;
+            leaderboardData.listenStartTime = Date.now();
             updatePlayButton();
             renderPlaylist();
             renderNowPlaying();
+            updateModeStatus();
             showDynamicIsland();
             if ($progressBar) $progressBar.value = 0;
             if ($curTime) $curTime.textContent = '0:00';
             updateLyricsUI();
+            // ★ 记录播放排行
+            recordPlayCount(song);
         }).catch(function(e) {
             console.warn('[MusicPlayer] 文件夹索引播放失败', e);
             notify('无法读取文件，请确认文件夹权限', 'error', 2500);
@@ -456,14 +547,32 @@
 
     function playNext() {
         if (playlist.length === 0) return;
-        var next = (currentIndex + 1) % playlist.length;
-        playSong(next);
+        if (playMode === PLAY_MODE_SHUFFLE) {
+            // ★ 随机播放
+            var next = Math.floor(Math.random() * playlist.length);
+            if (playlist.length > 1 && next === currentIndex) {
+                next = (next + 1) % playlist.length;
+            }
+            playSong(next);
+        } else {
+            // 顺序播放
+            var next = (currentIndex + 1) % playlist.length;
+            playSong(next);
+        }
     }
 
     function playPrev() {
         if (playlist.length === 0) return;
-        var prev = currentIndex <= 0 ? playlist.length - 1 : currentIndex - 1;
-        playSong(prev);
+        if (playMode === PLAY_MODE_SHUFFLE) {
+            var prev = Math.floor(Math.random() * playlist.length);
+            if (playlist.length > 1 && prev === currentIndex) {
+                prev = (currentIndex + 1) % playlist.length;
+            }
+            playSong(prev);
+        } else {
+            var prev = currentIndex <= 0 ? playlist.length - 1 : currentIndex - 1;
+            playSong(prev);
+        }
     }
 
     function updatePlayButton() {
@@ -475,6 +584,499 @@
             $playBtn.innerHTML = '<i class="fas fa-play"></i>';
             $playBtn.classList.add('paused');
         }
+    }
+
+    // ★ 播放模式切换
+    function togglePlayMode() {
+        if (playMode === PLAY_MODE_SEQUENTIAL) {
+            playMode = PLAY_MODE_SHUFFLE;
+        } else if (playMode === PLAY_MODE_SHUFFLE) {
+            playMode = PLAY_MODE_REPEAT_ONE;
+        } else {
+            playMode = PLAY_MODE_SEQUENTIAL;
+        }
+        updateModeText();
+        savePlayMode();
+    }
+
+    function updateModeText() {
+        if (!$modeText) return;
+        var text = '';
+        var icon = '';
+        if (playMode === PLAY_MODE_SEQUENTIAL) {
+            text = '顺序播放';
+            icon = '↔';
+        } else if (playMode === PLAY_MODE_SHUFFLE) {
+            text = '随机播放';
+            icon = '🔀';
+        } else {
+            text = '单曲循环';
+            icon = '🔂';
+        }
+        $modeText.textContent = icon + ' ' + text;
+        if ($modeBtn) {
+            $modeBtn.title = text + '（点击切换）';
+            if (playMode === PLAY_MODE_SHUFFLE) {
+                $modeBtn.style.color = 'var(--accent-color)';
+            } else if (playMode === PLAY_MODE_REPEAT_ONE) {
+                $modeBtn.style.color = '#f59e0b';
+            } else {
+                $modeBtn.style.color = '';
+            }
+        }
+    }
+
+    // ★ 模式状态显示（独自听歌 / 和梦角一起听）
+    function updateModeStatus() {
+        if (!$modeStatus || !$modeStatusText) return;
+        if (togetherMode) {
+            $modeStatusText.textContent = '💕 和梦角一起听';
+            $modeStatusText.className = 'mode-together';
+        } else if (soloListener === 'partner') {
+            $modeStatusText.textContent = '🌙 梦角在独自听歌';
+            $modeStatusText.className = 'mode-solo';
+        } else {
+            $modeStatusText.textContent = '🎧 我在独自听歌';
+            $modeStatusText.className = 'mode-solo';
+        }
+        $modeStatus.style.display = '';
+        // 同步更新灵动岛标题
+        if ($islandTitle) {
+            var song = playlist[currentIndex];
+            var prefix = togetherMode ? '💕 ' : (soloListener === 'partner' ? '🌙 ' : '');
+            $islandTitle.textContent = prefix + (song ? song.title : '未在播放');
+        }
+    }
+
+    // ======================== URL 导入 ========================
+    function importFromURL() {
+        if (!$urlInput) return;
+        var url = $urlInput.value.trim();
+        if (!url) { notify('请输入歌曲URL地址', 'warning', 2000); return; }
+        if (!/^https?:\/\/.+\.mp3(\?.*)?$/i.test(url) && !/^https?:\/\/.+$/i.test(url)) {
+            notify('请输入有效的URL链接', 'warning', 2000);
+            return;
+        }
+
+        var baseName = url.split('/').pop().replace(/\?.*$/, '').replace(/\.mp3$/i, '').replace(/\.(mp3|wav|ogg|m4a)$/i, '') || 'URL歌曲';
+        baseName = decodeURIComponent(baseName).replace(/[_-]/g, ' ').trim() || 'URL歌曲';
+
+        var artistGuess = '';
+        var titleGuess = baseName;
+        var dashIdx = baseName.indexOf(' - ');
+        if (dashIdx > 0) {
+            artistGuess = baseName.substring(0, dashIdx).trim();
+            titleGuess = baseName.substring(dashIdx + 3).trim();
+        }
+
+        var song = {
+            id: 'url_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+            title: titleGuess,
+            artist: artistGuess,
+            audioData: url,
+            lrcData: '',
+            lrcParsed: [],
+            duration: 0,
+            addedAt: Date.now(),
+            isURL: true
+        };
+
+        playlist.push(song);
+        savePlaylist();
+        renderPlaylist();
+        updateStorageBar();
+        $urlInput.value = '';
+        notify('已添加URL歌曲：' + titleGuess, 'success', 2000);
+    }
+
+    // ======================== 播放排行 ========================
+    function recordPlayCount(song) {
+        if (!song) return;
+        var id = song.id;
+        if (togetherMode) {
+            // 一起听模式：只计入一起听排行（我的排行仅统计独自听歌）
+            leaderboardData.togetherTop[id] = (leaderboardData.togetherTop[id] || 0) + 1;
+        } else if (soloListener === 'partner') {
+            // 梦角独自听歌：计入梦角排行（虚拟随机数据）
+            leaderboardData.partnerTop[id] = (leaderboardData.partnerTop[id] || 0) + 1;
+        } else {
+            // 我在独自听歌：计入我的排行（真实播放数据）
+            leaderboardData.myTop[id] = (leaderboardData.myTop[id] || 0) + 1;
+        }
+        saveLeaderboardData();
+    }
+
+    function recordPartnerPlay(song) {
+        if (!song) return;
+        // ★ 一起听模式下排行和时长由 recordPlayCount/recordListenDuration 计入 togetherTop/togetherTotalTime
+        // 梦角独自听歌时才计入 partnerTop/partnerTotalTime（虚拟随机数据）
+        if (!togetherMode) {
+            leaderboardData.partnerTop[song.id] = (leaderboardData.partnerTop[song.id] || 0) + 1;
+            var virtualDur = 60 + Math.floor(Math.random() * 240); // 60~300秒
+            leaderboardData.partnerTotalTime += virtualDur;
+            leaderboardData.totalListenTime += virtualDur;
+        }
+        // 梦角听歌记录（无论何种模式都记录历史）
+        partnerListenHistory.push({
+            id: 'ph_' + Date.now(),
+            songId: song.id,
+            title: song.title || '未知歌曲',
+            artist: song.artist || '',
+            time: Date.now(),
+            together: togetherMode
+        });
+        if (partnerListenHistory.length > 200) partnerListenHistory.shift();
+        saveLeaderboardData();
+    }
+
+    function recordListenDuration() {
+        if (leaderboardData.listenStartTime > 0) {
+            var dur = (Date.now() - leaderboardData.listenStartTime) / 1000;
+            if (dur > 0 && dur < 3600) { // 忽略异常的极长时长
+                leaderboardData.totalListenTime += dur; // 总时长 = 三者之和
+                if (togetherMode) {
+                    // 一起听模式：只计入一起听时长（我的时长仅统计独自听歌）
+                    leaderboardData.togetherTotalTime += dur;
+                } else if (soloListener === 'partner') {
+                    // 梦角独自听歌：时长归属梦角（虚拟随机数据）
+                    leaderboardData.partnerTotalTime += dur;
+                } else {
+                    // 我在独自听歌：时长归属我（真实播放数据）
+                    leaderboardData.myTotalTime += dur;
+                }
+            }
+        }
+        leaderboardData.listenStartTime = Date.now();
+    }
+
+    function saveLeaderboardData() {
+        try {
+            var key = getMusicKey() + '_leaderboard';
+            var data = {
+                myTop: leaderboardData.myTop,
+                togetherTop: leaderboardData.togetherTop,
+                partnerTop: leaderboardData.partnerTop,
+                totalListenTime: leaderboardData.totalListenTime,
+                myTotalTime: leaderboardData.myTotalTime,
+                togetherTotalTime: leaderboardData.togetherTotalTime,
+                partnerTotalTime: leaderboardData.partnerTotalTime,
+                partnerHistory: partnerListenHistory
+            };
+            localStorage.setItem(key, JSON.stringify(data));
+        } catch (e) {}
+    }
+
+    function loadLeaderboardData() {
+        try {
+            var key = getMusicKey() + '_leaderboard';
+            var raw = localStorage.getItem(key);
+            if (raw) {
+                var data = JSON.parse(raw);
+                if (data.myTop) leaderboardData.myTop = data.myTop;
+                if (data.togetherTop) leaderboardData.togetherTop = data.togetherTop;
+                if (data.partnerTop) leaderboardData.partnerTop = data.partnerTop;
+                if (data.totalListenTime) leaderboardData.totalListenTime = data.totalListenTime;
+                if (data.myTotalTime) leaderboardData.myTotalTime = data.myTotalTime;
+                if (data.togetherTotalTime) leaderboardData.togetherTotalTime = data.togetherTotalTime;
+                if (data.partnerTotalTime) leaderboardData.partnerTotalTime = data.partnerTotalTime;
+                if (data.partnerHistory) partnerListenHistory = data.partnerHistory;
+            }
+        } catch (e) {}
+    }
+
+    function getSongNameById(id) {
+        for (var i = 0; i < playlist.length; i++) {
+            if (playlist[i].id === id) return playlist[i].title || '未知歌曲';
+        }
+        // 可能歌曲已被删除，从历史记录查
+        for (var j = 0; j < partnerListenHistory.length; j++) {
+            if (partnerListenHistory[j].songId === id) return partnerListenHistory[j].title || '未知歌曲';
+        }
+        return '未知歌曲';
+    }
+
+    function getTopSongs(data, topN) {
+        topN = topN || 20;
+        var entries = [];
+        for (var id in data) {
+            if (data.hasOwnProperty(id)) entries.push({ id: id, count: data[id] });
+        }
+        entries.sort(function(a, b) { return b.count - a.count; });
+        return entries.slice(0, topN);
+    }
+
+    function formatListeningTime(seconds) {
+        if (!seconds || seconds < 0) return '0分钟';
+        var totalSec = Math.floor(seconds);
+        var h = Math.floor(totalSec / 3600);
+        var m = Math.floor((totalSec % 3600) / 60);
+        var s = totalSec % 60;
+        var parts = [];
+        if (h > 0) parts.push(h + '小时');
+        if (m > 0) parts.push(m + '分钟');
+        if (s > 0 || parts.length === 0) parts.push(s + '秒');
+        return parts.join('');
+    }
+
+    function renderLeaderboard(which) {
+        if (!$lbList) return;
+        var items, title;
+        var isTime = false;
+
+        if (which === 'my-top') {
+            items = getTopSongs(leaderboardData.myTop);
+        } else if (which === 'together-top') {
+            items = getTopSongs(leaderboardData.togetherTop);
+        } else if (which === 'partner-top') {
+            items = getTopSongs(leaderboardData.partnerTop);
+        } else if (which === 'total-time') {
+            isTime = true;
+            $lbList.innerHTML =
+                '<div class="music-lb-total">' +
+                '<div class="music-lb-total-value">' + formatListeningTime(leaderboardData.totalListenTime) + '</div>' +
+                '<div class="music-lb-total-label">总听歌时长</div>' +
+                '<div style="display:flex;justify-content:space-around;margin-top:16px;gap:10px;flex-wrap:wrap;">' +
+                '<div style="text-align:center;"><div style="font-size:1.1rem;font-weight:600;color:var(--accent-color);">' + formatListeningTime(leaderboardData.myTotalTime) + '</div><div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">🎧 我独自听</div></div>' +
+                '<div style="text-align:center;"><div style="font-size:1.1rem;font-weight:600;color:#e94560;">' + formatListeningTime(leaderboardData.togetherTotalTime) + '</div><div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">💕 一起听</div></div>' +
+                '<div style="text-align:center;"><div style="font-size:1.1rem;font-weight:600;color:#f59e0b;">' + formatListeningTime(leaderboardData.partnerTotalTime || 0) + '</div><div style="font-size:0.65rem;color:var(--text-secondary);margin-top:2px;">🌙 梦角听</div></div>' +
+                '</div>' +
+                '</div>';
+            return;
+        }
+
+        if (!items || items.length === 0) {
+            $lbList.innerHTML = '<div class="music-lb-empty">暂无排行数据，多听听歌吧~</div>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            var rank = i + 1;
+            var rankCls = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : 'rn';
+            var rankIcon = rank === 1 ? '👑' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+            var name = getSongNameById(items[i].id);
+            html +=
+                '<div class="music-lb-item">' +
+                '<div class="music-lb-rank ' + rankCls + '">' + rankIcon + '</div>' +
+                '<div class="music-lb-info">' +
+                '<div class="music-lb-name">' + escapeHTML(name) + '</div>' +
+                '<div class="music-lb-count">播放 ' + items[i].count + ' 次</div>' +
+                '</div>' +
+                '</div>';
+        }
+        $lbList.innerHTML = html;
+    }
+
+    function openLeaderboard() {
+        if (!$lbOverlay) cacheDOM();
+        if (!$lbOverlay) return;
+        $lbOverlay.classList.add('active');
+        renderLeaderboard('my-top');
+        // 激活第一个tab
+        var tabs = document.querySelectorAll('.music-lb-tab');
+        if (tabs.length > 0) {
+            for (var t = 0; t < tabs.length; t++) tabs[t].classList.remove('active');
+            tabs[0].classList.add('active');
+        }
+    }
+
+    function closeLeaderboard() {
+        if (!$lbOverlay) return;
+        $lbOverlay.classList.remove('active');
+    }
+
+    // ======================== 邀请梦角一起听（用户主动） ========================
+    function invitePartner() {
+        if (!togetherMode && (!isPlaying || currentIndex < 0)) {
+            showPartnerActionPopup('🎵', '需要先播放歌曲', '请先开始播放一首歌曲，再邀请梦角哦~');
+            return;
+        }
+        if (togetherMode) {
+            // 已经在一起听模式，退出
+            exitTogetherMode();
+            return;
+        }
+        if (!$inviteOverlay) cacheDOM();
+        if (!$inviteOverlay) return;
+
+        var song = playlist[currentIndex];
+        if (!$inviteSong) return;
+        $inviteSong.textContent = (song.title || '未知歌曲') + (song.artist ? ' - ' + song.artist : '');
+
+        // 修改弹窗文字
+        var titleEl = document.querySelector('.music-invite-title');
+        if (titleEl) titleEl.textContent = '邀请梦角一起听歌';
+        var subtitleEl = document.querySelector('.music-invite-subtitle');
+        if (subtitleEl) subtitleEl.textContent = '正在等待梦角回应... (30秒超时)';
+
+        // 重新绑定接受按钮
+        if ($inviteAccept) {
+            $inviteAccept.onclick = partnerAcceptInvite;
+        }
+        if ($inviteDecline) {
+            $inviteDecline.onclick = partnerDeclineInvite;
+        }
+
+        // ★ 确保播放器不最小化
+        if ($overlay && !$overlay.classList.contains('active')) {
+            openPlayer();
+        }
+        $inviteOverlay.classList.add('active');
+
+        // ★ 30秒超时
+        if (partnerInviteTimeout) clearTimeout(partnerInviteTimeout);
+        partnerInviteTimeout = setTimeout(function() {
+            hideInviteModal();
+            // ★ 超时结果弹窗
+            showPartnerActionPopup('⏰', '邀请超时', '梦角没有回应，可能正在忙...', resetInviteModal);
+        }, INVITE_TIMEOUT);
+    }
+
+    function resetInviteModal() {
+        if ($inviteAccept) $inviteAccept.onclick = onInviteAccept;
+        if ($inviteDecline) $inviteDecline.onclick = onInviteDecline;
+        var titleEl = document.querySelector('.music-invite-title');
+        if (titleEl) titleEl.textContent = '梦角邀请你一起听歌';
+        var subtitleEl = document.querySelector('.music-invite-subtitle');
+        if (subtitleEl) subtitleEl.textContent = '「要不要一起听这首歌？」';
+    }
+
+    function partnerAcceptInvite() {
+        if (partnerInviteTimeout) clearTimeout(partnerInviteTimeout);
+        hideInviteModal();
+        enterTogetherMode();
+        var song = playlist[currentIndex];
+        var songName = song ? (song.title || '未知歌曲') : '未知歌曲';
+        // ★ 使用弹窗显示接受结果
+        showPartnerActionPopup('💕', '梦角接受了邀请！', '一起听「' + songName + '」♪(´▽｀)', resetInviteModal);
+    }
+
+    function partnerDeclineInvite() {
+        if (partnerInviteTimeout) clearTimeout(partnerInviteTimeout);
+        hideInviteModal();
+        // ★ 使用弹窗显示拒绝结果
+        showPartnerActionPopup('😊', '梦角婉拒了', '梦角说："现在不太方便，下次吧~"', resetInviteModal);
+    }
+
+    // ======================== 一起听模式 ========================
+    function enterTogetherMode() {
+        togetherMode = true;
+        soloListener = 'me';
+        updateModeStatus();
+        if ($inviteBtn) $inviteBtn.innerHTML = '<i class="fas fa-user-times"></i> 退出一起听';
+        if ($inviteBtn) $inviteBtn.style.borderColor = '#e94560';
+        // 开始梦角行为计时器
+        schedulePartnerAction();
+    }
+
+    function exitTogetherMode() {
+        togetherMode = false;
+        soloListener = 'me';
+        updateModeStatus();
+        if ($inviteBtn) $inviteBtn.innerHTML = '<i class="fas fa-user-plus"></i> 邀请梦角一起听';
+        if ($inviteBtn) $inviteBtn.style.borderColor = '';
+        if (partnerActionTimer) clearTimeout(partnerActionTimer);
+        partnerActionTimer = null;
+        notify('已退出一起听模式', 'info', 2000);
+    }
+
+    function schedulePartnerAction() {
+        if (partnerActionTimer) clearTimeout(partnerActionTimer);
+        if (!togetherMode || !isPlaying) return;
+        var delay = PARTNER_ACTION_MIN + Math.random() * (PARTNER_ACTION_MAX - PARTNER_ACTION_MIN);
+        partnerActionTimer = setTimeout(function() {
+            if (!togetherMode || !isPlaying) { schedulePartnerAction(); return; }
+            triggerPartnerAction();
+        }, delay);
+    }
+
+    function triggerPartnerAction() {
+        // 60%概率切歌，40%概率暂停
+        var isSwitch = Math.random() < 0.6;
+
+        if (!isSwitch && isPlaying) {
+            // 暂停
+            showPartnerActionPopup('⏸️', '梦角暂停了音乐', '梦角说"等一下，我去拿杯水"', function() {
+                togglePlay();
+                if (!isPlaying && togetherMode) {
+                    // 梦角暂停后，过3-8秒自动恢复
+                    setTimeout(function() {
+                        if (togetherMode && !isPlaying) {
+                            showPartnerActionPopup('▶️', '梦角恢复了播放', '梦角说"好了，继续听吧~"', function() {
+                                togglePlay();
+                                schedulePartnerAction();
+                            });
+                        }
+                    }, 3000 + Math.random() * 5000);
+                } else {
+                    schedulePartnerAction();
+                }
+            });
+        } else {
+            // 切歌
+            var newIndex;
+            if (playlist.length <= 1) {
+                schedulePartnerAction();
+                return;
+            }
+            do {
+                newIndex = Math.floor(Math.random() * playlist.length);
+            } while (newIndex === currentIndex);
+
+            var song = playlist[newIndex];
+            showPartnerActionPopup('🎵', '梦角切了一首歌', '切到「' + (song.title || '未知歌曲') + '」', function() {
+                recordPartnerPlay(song);
+                playSong(newIndex);
+                schedulePartnerAction();
+            });
+        }
+    }
+
+    function showPartnerActionPopup(icon, title, subtitle, callback) {
+        if (!$partnerActionOverlay) cacheDOM();
+        if (!$partnerActionOverlay) { if (callback) callback(); return; }
+        if ($partnerActionIcon) $partnerActionIcon.textContent = icon;
+        if ($partnerActionTitle) $partnerActionTitle.textContent = title;
+        if ($partnerActionSubtitle) $partnerActionSubtitle.textContent = subtitle;
+        if ($partnerActionOk) {
+            $partnerActionOk.onclick = function() {
+                hidePartnerActionPopup();
+                if (callback) callback();
+            };
+        }
+        $partnerActionOverlay.classList.add('active');
+    }
+
+    function hidePartnerActionPopup() {
+        if (!$partnerActionOverlay) return;
+        $partnerActionOverlay.classList.remove('active');
+    }
+
+    // ★ 伙伴随机接受邀请概率（梦角主动邀请）
+    var _partnerAcceptProbability = 0.4;
+
+    function triggerPartnerAutoInvite() {
+        if (togetherMode) return; // 已在一起听模式，不需要再邀请
+        if (playlist.length === 0) return;
+        if (inviteCooldown > 0) { inviteCooldown--; return; }
+        var roll = Math.random();
+        if (roll >= _partnerAcceptProbability * 0.3) return;
+        showInviteModal();
+        inviteCooldown = 6 + Math.floor(Math.random() * 8);
+    }
+
+    // 公开排行榜数据供TA手机读取
+    function getLeaderboardData() {
+        return {
+            myTop: leaderboardData.myTop,
+            togetherTop: leaderboardData.togetherTop,
+            partnerTop: leaderboardData.partnerTop,
+            totalListenTime: leaderboardData.totalListenTime,
+            myTotalTime: leaderboardData.myTotalTime,
+            togetherTotalTime: leaderboardData.togetherTotalTime,
+            partnerTotalTime: leaderboardData.partnerTotalTime,
+            partnerHistory: partnerListenHistory
+        };
     }
 
     function renderNowPlaying() {
@@ -552,6 +1154,7 @@
     }
 
     function stopPlayback() {
+        recordListenDuration();
         if (audioEl) { audioEl.pause(); audioEl.src = ''; }
         isPlaying = false;
         currentIndex = -1;
@@ -564,6 +1167,8 @@
         if ($progressBar) $progressBar.value = 0;
         if ($curTime) $curTime.textContent = '0:00';
         if ($durTime) $durTime.textContent = '0:00';
+        // ★ 停止时退出一起听
+        if (togetherMode) exitTogetherMode();
     }
 
     // ======================== 批量选择模式 ========================
@@ -1304,7 +1909,20 @@
             renderPlaylist();
             renderNowPlaying();
             updatePlayButton();
+            updateModeText();
+            updateModeStatus();
             updateStorageBar();
+
+            // ★ 更新邀请按钮状态
+            if ($inviteBtn) {
+                if (togetherMode) {
+                    $inviteBtn.innerHTML = '<i class="fas fa-user-times"></i> 退出一起听';
+                    $inviteBtn.style.borderColor = '#e94560';
+                } else {
+                    $inviteBtn.innerHTML = '<i class="fas fa-user-plus"></i> 邀请梦角一起听';
+                    $inviteBtn.style.borderColor = '';
+                }
+            }
 
             $overlay.classList.add('active');
 
@@ -1328,6 +1946,8 @@
         if (isPlaying && currentIndex >= 0) {
             showDynamicIsland();
         }
+        // ★ 关闭弹窗时记录听歌时长
+        recordListenDuration();
     }
 
     // ======================== 随机邀约 ========================
@@ -1370,6 +1990,7 @@
         var idx = playlist.indexOf(song);
         if (idx < 0 && playlist.length > 0) idx = 0;
         if (idx >= 0) playSong(idx);
+        enterTogetherMode();
         openPlayer();
         notify('✦ 和梦角一起听歌吧  ♪(´▽｀)', 'success', 2500);
     }
@@ -1466,6 +2087,60 @@
         if ($playBtn) $playBtn.addEventListener('click', togglePlay);
         if ($prevBtn) $prevBtn.addEventListener('click', playPrev);
         if ($nextBtn) $nextBtn.addEventListener('click', playNext);
+        if ($modeBtn) $modeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            togglePlayMode();
+        });
+
+        // ★ URL导入
+        if ($urlAddBtn) $urlAddBtn.addEventListener('click', importFromURL);
+        if ($urlInput) {
+            $urlInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') importFromURL();
+            });
+        }
+
+        // ★ 邀请梦角
+        if ($inviteBtn) $inviteBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            invitePartner();
+        });
+
+        // ★ 排行榜
+        if ($leaderboardBtn) $leaderboardBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openLeaderboard();
+        });
+        if ($lbClose) $lbClose.addEventListener('click', closeLeaderboard);
+        if ($lbOverlay) {
+            $lbOverlay.addEventListener('click', function(e) {
+                if (e.target === $lbOverlay) closeLeaderboard();
+            });
+        }
+        // 排行榜标签切换
+        var lbTabs = document.querySelectorAll('.music-lb-tab');
+        for (var ti = 0; ti < lbTabs.length; ti++) {
+            lbTabs[ti].addEventListener('click', function() {
+                var which = this.getAttribute('data-lb');
+                document.querySelectorAll('.music-lb-tab').forEach(function(t) { t.classList.remove('active'); });
+                this.classList.add('active');
+                renderLeaderboard(which);
+            });
+        }
+
+        // ★ 梦角行为弹窗
+        if ($partnerActionOk) {
+            // OK按钮事件在showPartnerActionPopup中动态设置
+        }
+        if ($partnerActionOverlay) {
+            $partnerActionOverlay.addEventListener('click', function(e) {
+                if (e.target === $partnerActionOverlay) {
+                    hidePartnerActionPopup();
+                    // 回退行为
+                    if (togetherMode) schedulePartnerAction();
+                }
+            });
+        }
 
         if ($volumeSlider) {
             $volumeSlider.addEventListener('input', function() {
@@ -1577,7 +2252,10 @@
         loadPlaylist().then(function() {
             renderPlaylist();
             renderNowPlaying();
+            updateModeText();
+            updateModeStatus();
             updateStorageBar();
+            loadLeaderboardData();
             setTimeout(injectSettingsUI, 800);
 
             var settingsBtn = document.getElementById('settings-btn');
@@ -1609,7 +2287,16 @@
         refreshStorage: updateStorageBar,
         importZip: importZip,
         exportZip: exportAllAsZip,
-        openFolder: openFolder
+        openFolder: openFolder,
+        invitePartner: invitePartner,
+        openLeaderboard: openLeaderboard,
+        getLeaderboardData: getLeaderboardData,
+        getPartnerHistory: function() { return partnerListenHistory; },
+        isTogetherMode: function() { return togetherMode; },
+        getPlayMode: function() { return playMode; },
+        importFromURL: importFromURL,
+        setSoloListener: function(who) { soloListener = who; updateModeStatus(); },
+        getSoloListener: function() { return soloListener; }
     };
 
     global.MusicPlayerApp = MusicPlayer;

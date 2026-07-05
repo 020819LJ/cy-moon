@@ -147,7 +147,7 @@
         accounting: '<i class="fas fa-coins"></i>'
     };
 
-    const defaultAppOrder = ['chat', 'mailbox', 'moyu', 'diary', 'fortune', 'mood', 'calendar', 'decide', 'stats', 'accounting', 'map'];
+    const defaultAppOrder = ['chat', 'mailbox', 'moyu', 'diary', 'fortune', 'mood', 'calendar', 'decide', 'stats', 'accounting'];
     let appOrder = [...defaultAppOrder];
     let isEditMode = false;
 
@@ -1617,28 +1617,6 @@
                     };
                     script.onerror = function() {
                         (window.showNotification || function(){})('商城加载失败', 'error');
-                    };
-                    document.head.appendChild(script);
-                }
-            },
-            'map': () => {
-                if (typeof window.MapApp !== 'undefined') {
-                    window.MapApp.show();
-                } else {
-                    // 动态加载 map.js（使用绝对路径避免预览环境路径问题）
-                    (window.showNotification || function(){})('地图加载中...', 'info');
-                    const script = document.createElement('script');
-                    var basePath = window.location.pathname.replace(/\/[^\/]*$/, '/') || '/';
-                    script.src = basePath + 'js/features/map.js';
-                    script.onload = function() {
-                        if (typeof window.MapApp !== 'undefined') {
-                            window.MapApp.show();
-                        } else {
-                            (window.showNotification || function(){})('地图加载失败，请刷新重试', 'error');
-                        }
-                    };
-                    script.onerror = function() {
-                        (window.showNotification || function(){})('地图加载失败，请检查网络', 'error');
                     };
                     document.head.appendChild(script);
                 }

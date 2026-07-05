@@ -325,11 +325,6 @@ if (exportAllBtn) {
                             <span>朋友圈 / 访客记录</span>
                         </label>
                         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border-color);border-radius:12px;background:var(--primary-bg);font-size:13px;color:var(--text-primary);">
-                            <input type="checkbox" id="_bk_map" checked style="accent-color:var(--accent-color);width:15px;height:15px;">
-                            <i class="fas fa-map-marked-alt" style="color:var(--accent-color);width:16px;text-align:center;"></i>
-                            <span>Zmilk地图</span>
-                        </label>
-                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border-color);border-radius:12px;background:var(--primary-bg);font-size:13px;color:var(--text-primary);">
                             <input type="checkbox" id="_bk_taphone" checked style="accent-color:var(--accent-color);width:15px;height:15px;">
                             <i class="fas fa-mobile-alt" style="color:var(--accent-color);width:16px;text-align:center;"></i>
                             <span>TA的手机</span>
@@ -353,6 +348,11 @@ if (exportAllBtn) {
                             <input type="checkbox" id="_bk_envelope" checked style="accent-color:var(--accent-color);width:15px;height:15px;">
                             <i class="fas fa-envelope" style="color:var(--accent-color);width:16px;text-align:center;"></i>
                             <span>信封投递</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1px solid var(--border-color);border-radius:12px;background:var(--primary-bg);font-size:13px;color:var(--text-primary);">
+                            <input type="checkbox" id="_bk_music" checked style="accent-color:var(--accent-color);width:15px;height:15px;">
+                            <i class="fas fa-music" style="color:var(--accent-color);width:16px;text-align:center;"></i>
+                            <span>一起听歌 / 排行榜</span>
                         </label>
                     </div>
                     <div style="display:flex;gap:10px;">
@@ -388,10 +388,11 @@ if (exportAllBtn) {
                 const inclDiary   = document.getElementById('_bk_diary').checked;
                 const inclAccounting = document.getElementById('_bk_accounting').checked;
                 const inclEnvelope = document.getElementById('_bk_envelope').checked;
+                const inclMusic   = document.getElementById('_bk_music') ? document.getElementById('_bk_music').checked : true;
 
                 if (!inclMsgs && !inclSet && !inclCustom && !inclAnn && !inclThemes && !inclDg && !inclStickers &&
-                    !inclHome && !inclMoyu && !inclShop && !inclMoments && !inclMap && !inclTaPhone && !inclPet &&
-                    !inclDiary && !inclAccounting && !inclEnvelope) {
+                    !inclHome && !inclMoyu && !inclShop && !inclMoments && !inclTaPhone && !inclPet &&
+                    !inclDiary && !inclAccounting && !inclEnvelope && !inclMusic) {
                     showNotification('请至少选择一项', 'error');
                     return;
                 }
@@ -411,12 +412,12 @@ if (exportAllBtn) {
                             inclMoyu: inclMoyu,
                             inclShop: inclShop,
                             inclMoments: inclMoments,
-                            inclMap: inclMap,
                             inclTaPhone: inclTaPhone,
                             inclPet: inclPet,
                             inclDiary: inclDiary,
                             inclAccounting: inclAccounting,
-                            inclEnvelope: inclEnvelope
+                            inclEnvelope: inclEnvelope,
+                            inclMusic: inclMusic
                         });
                         const jsonString = ChatBackup.serializeBackupV4(payload);
                         const dateStr = new Date().toISOString().slice(0, 10);

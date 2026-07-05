@@ -306,7 +306,7 @@
     function showDesktop() {
         const desktop = document.querySelector('.ta-phone-desktop');
         const content = document.getElementById('ta-phone-content');
-        if (desktop) desktop.style.display = 'flex';
+        if (desktop) desktop.style.display = 'grid';
         if (content) content.style.display = 'none';
         updateTitle('TA的手机');
     }
@@ -345,6 +345,11 @@
             renderGiftCabinet();
             const sortBar = document.getElementById('ta-phone-sort-bar');
             if (sortBar) sortBar.style.display = 'none';
+        } else if (type === 'music') {
+            updateTitle('听歌记录');
+            renderMusicHistory();
+            const sortBar = document.getElementById('ta-phone-sort-bar');
+            if (sortBar) sortBar.style.display = 'none';
         } else {
             updateTitle(type === 'chat' ? '聊天' : '朋友圈');
             renderList(type);
@@ -356,7 +361,89 @@
         }
     }
 
-    // 动态注入 CSS
+    // 渲染梦角听歌记录
+    function renderMusicHistory() {
+        const listEl = document.getElementById('ta-phone-list');
+        if (!listEl) return;
+
+        // 获取听歌记录（来自 MusicPlayerApp）
+        let musicHistory = [];
+        let leaderboard = null;
+        if (window.MusicPlayerApp && typeof window.MusicPlayerApp.getPartnerHistory === 'function') {
+            musicHistory = window.MusicPlayerApp.getPartnerHistory();
+        }
+        if (window.MusicPlayerApp && typeof window.MusicPlayerApp.getLeaderboardData === 'function') {
+            leaderboard = window.MusicPlayerApp.getLeaderboardData();
+        }
+
+        // 如果没有记录，生成一些虚拟数据
+        if (musicHistory.length === 0) {
+            const songs = (window.MusicPlayerApp && typeof window.MusicPlayerApp.getPlaylist === 'function') ? window.MusicPlayerApp.getPlaylist() : [];
+            if (songs.length > 0) {
+                const now = Date.now();
+                for (let i = 0; i < Math.min(songs.length, 8); i++) {
+                    const song = songs[i];
+                    musicHistory.push({
+                        id: 'ph_gen_' + i,
+                        songId: song.id,
+                        title: song.title || '未知歌曲',
+                        artist: song.artist || '',
+                        time: now - (i + 1) * 3600000 * (1 + Math.random() * 10),
+                        together: Math.random() > 0.5
+                    });
+                }
+            }
+        }
+
+        if (musicHistory.length === 0) {
+            listEl.innerHTML = '<div class="ta-phone-empty">梦角还没有听歌记录，去一起听歌吧~</div>';
+            return;
+        }
+
+        // 统计信息
+        let totalSongs = musicHistory.length;
+        let togetherCount = musicHistory.filter(h => h.together).length;
+        let uniqueSongs = [...new Set(musicHistory.map(h => h.songId))].length;
+
+        let statsHtml = `
+            <div style="display:flex;justify-content:space-around;padding:12px 8px;margin-bottom:8px;background:linear-gradient(135deg,rgba(233,69,96,0.06),rgba(255,107,107,0.04));border-radius:12px;flex-wrap:wrap;gap:6px;">
+                <div style="text-align:center;min-width:60px;">
+                    <div style="font-size:1.2rem;font-weight:700;color:var(--accent-color);">${totalSongs}</div>
+                    <div style="font-size:0.65rem;color:var(--text-light);">总听次数</div>
+                </div>
+                <div style="text-align:center;min-width:60px;">
+                    <div style="font-size:1.2rem;font-weight:700;color:#e94560;">${togetherCount}</div>
+                    <div style="font-size:0.65rem;color:var(--text-light);">一起听</div>
+                </div>
+                <div style="text-align:center;min-width:60px;">
+                    <div style="font-size:1.2rem;font-weight:700;color:#f59e0b;">${uniqueSongs}</div>
+                    <div style="font-size:0.65rem;color:var(--text-light);">不同歌曲</div>
+                </div>
+            </div>
+        `;
+
+        // 按时间倒序排列
+        let sorted = [...musicHistory].sort((a, b) => b.time - a.time);
+
+        listEl.innerHTML = statsHtml + sorted.map(item => {
+            let typeBadge = item.together
+                ? '<span style="background:linear-gradient(135deg,rgba(233,69,96,0.15),rgba(255,107,107,0.1));color:#e94560;padding:1px 8px;border-radius:10px;font-size:0.65rem;font-weight:500;">💕 一起听</span>'
+                : '<span style="background:rgba(100,100,255,0.06);color:var(--text-light);padding:1px 8px;border-radius:10px;font-size:0.65rem;">🎧 独自听</span>';
+            return `
+                <div class="ta-phone-item" style="display:flex;align-items:flex-start;gap:10px;">
+                    <div style="font-size:1.5rem;flex-shrink:0;margin-top:2px;">🎵</div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+                            <div style="font-weight:600;font-size:0.85rem;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;">${escapeHtml(item.title || '未知歌曲')}</div>
+                            ${typeBadge}
+                        </div>
+                        ${item.artist ? `<div style="font-size:0.7rem;color:var(--text-light);margin-bottom:2px;">${escapeHtml(item.artist)}</div>` : ''}
+                        <div class="ta-phone-item-time">${formatTime(item.time)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
     function injectStyles() {
         if (document.getElementById('ta-phone-styles')) return;
         const style = document.createElement('style');
@@ -407,12 +494,12 @@
             }
             /* 桌面区域（弹窗内部） */
             .ta-phone-desktop {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                gap: 36px;
-                padding: 50px 20px;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                padding: 30px 28px;
                 flex-shrink: 0;
+                justify-items: center;
             }
             .ta-phone-app {
                 display: flex;
@@ -420,13 +507,20 @@
                 align-items: center;
                 gap: 8px;
                 cursor: pointer;
+                padding: 10px;
+                border-radius: 16px;
+                transition: background 0.2s;
+            }
+            .ta-phone-app:hover {
+                background: rgba(255,255,255,0.04);
             }
             .ta-phone-app:active {
                 opacity: 0.7;
+                background: rgba(255,255,255,0.07);
             }
             .ta-phone-app-icon {
-                width: 56px;
-                height: 56px;
+                width: 52px;
+                height: 52px;
                 border-radius: 14px;
                 display: flex;
                 align-items: center;
@@ -435,8 +529,8 @@
                 color: var(--text, #e0e0e0);
             }
             .ta-phone-app-icon svg {
-                width: 28px;
-                height: 28px;
+                width: 26px;
+                height: 26px;
             }
             .ta-phone-app-name {
                 font-size: 0.8rem;

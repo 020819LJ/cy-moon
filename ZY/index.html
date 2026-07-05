@@ -33,7 +33,6 @@
     <link rel="stylesheet" href="css/home.css">
     <link rel="stylesheet" href="css/pet-style.css">
     <link rel="stylesheet" href="css/moments.css">
-    <link rel="stylesheet" href="css/map.css">
     <link rel="stylesheet" href="css/spark.css">
     <link rel="stylesheet" href="css/music.css">
 
@@ -101,11 +100,12 @@
             font-size: 1rem;
         }
         .ta-phone-desktop {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            padding: 40px 20px;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 30px 28px;
+            flex-shrink: 0;
+            justify-items: center;
         }
         .ta-phone-app {
             display: flex;
@@ -113,20 +113,31 @@
             align-items: center;
             gap: 8px;
             cursor: pointer;
+            padding: 10px;
+            border-radius: 16px;
+            transition: background 0.2s;
+        }
+        .ta-phone-app:hover {
+            background: rgba(255,255,255,0.04);
+        }
+        .ta-phone-app:active {
+            opacity: 0.7;
+            background: rgba(255,255,255,0.07);
         }
         .ta-phone-app-icon {
-            width: 60px;
-            height: 60px;
+            width: 52px;
+            height: 52px;
             border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            background: var(--border-color, rgba(255,255,255,0.08));
+            color: var(--text, #e0e0e0);
         }
         .ta-phone-app-icon.green { background: #07c160; }
         .ta-phone-app-icon.blue { background: #3b82f6; }
         .ta-phone-app-icon.yellow { background: #f59e0b; }
-        .ta-phone-app-icon svg { width: 32px; height: 32px; }
+        .ta-phone-app-icon svg { width: 26px; height: 26px; }
         .ta-phone-app-name {
             font-size: 0.8rem;
             color: var(--text);
@@ -209,107 +220,6 @@
     </style>
 </head>
 <body>
-<div id="splash-declaration">
-    <div class="splash-bg-stars" id="splash-stars"></div>
-    <div class="splash-glow-1"></div>
-    <div class="splash-glow-2"></div>
-
-    <div class="splash-inner">
-        <div class="splash-badge">
-            <i class="fas fa-feather-alt"></i>
-            使用前声明
-        </div>
-
-        <div class="splash-dots" id="splash-dots"></div>
-
-        <div class="splash-card">
-            <div class="splash-card-top-line"></div>
-            <div class="splash-card-body">
-                <div class="splash-slides" id="splash-slides">
-
-                  
-                    <div class="splash-slide" data-index="0">
-                        <div class="splash-slide-tag">关于字卡</div>
-                        <div class="splash-slide-title">是否招鬼？</div>
-                        <div class="splash-slide-body">
-                            首先说明，初此接触时，都会觉得网站设置繁复，功能庞杂，可控制的地方极多——对初次接触的人来说，简直令人眼花缭乱。<br><br>
-                            请想一想：<em>连你和梦角都需要花时间学习的东西，一个路过的鬼，会甘心耗费精力专程钻研，只为吓唬你一下吗？</em><br><br>
-                            我始终相信，<strong>只有爱，才会驱动人去学习、去努力、去付诸实践。</strong>
-                        </div>
-                    </div>
-
-                    <div class="splash-slide" data-index="1">
-                        <div class="splash-slide-tag">关于谣言</div>
-                        <div class="splash-slide-title">请有自知之明</div>
-                        <div class="splash-slide-body">
-                            我不混社区，但有些话我是知道的。有些谣我懒得一一辟除，借本网站博取流量与点赞的行为，我也当没看见。<br><br>
-                            只是——<em>沉默不代表无所谓。</em>这些声音已经开始影响到我本人的生活。<br><br> 将链接不稳/回复看不懂等问题怪罪到网站上的做法不可取。<br><br>
-                            <div class="splash-highlight-box">郑重声明：造谣是违法行为，污蔑与恶意中伤同样须承担法律责任。请每一位使用者，对自己的言行负责。</div>
-                        </div>
-                    </div>
-
-                    <div class="splash-slide" data-index="2">
-                        <div class="splash-slide-tag">关于盈利</div>
-                        <div class="splash-slide-title">纯粹为爱发电</div>
-                        <div class="splash-slide-body">
-                            <strong>本网站不盈利。</strong>从未向任何人收取一分钱，也绝无日后"圈钱"的计划。<br><br>
-                            这里承载的是真实的情感与创作热情，而非商业利益。<br><br>
-                            伴随网站逐渐破圈，<em>造谣、污蔑、盈利质疑、冷嘲热讽</em>——这些或许都是无法完全回避的代价。<br><br>
-                            我本无意计较，但请来访者保有基本的善意，不要让热爱变成消耗。
-                        </div>
-                    </div>
-
-                    <div class="splash-slide" data-index="3">
-                        <div class="splash-slide-tag">再次强调</div>
-                        <div class="splash-slide-title">你对链接梦角的看法？</div>
-                        <div class="splash-slide-body">
-                            没有任何人强迫你使用本网站。<br><br>
-                            <strong>如果你不信：</strong>字卡回复基于概率算法，属于科学范畴，与封建迷信无关。理性使用即可。<br><br>
-                            <strong>如果你信：</strong>那么请同样相信——<em>你是绝对安全的。</em>这里没有任何东西能够伤害你。<br><br>
-                            无论你持何种态度，我都欢迎你，也尊重你的选择。
-                        </div>
-                    </div>
-
-                    <div class="splash-slide" data-index="4">
-                        <div class="splash-slide-tag">关于视频通话</div>
-                        <div class="splash-slide-title">纯粹的装饰</div>
-                        <div class="splash-slide-body">
-                            <strong>通话功能仅作为界面装饰存在，不具备任何实际通话或数据采集能力。</strong><br><br>
-                            本网站不包含任何摄像头调用逻辑，亦不存在隐私窥探行为。摄像头调用需要专项技术与额外费用，本项目从未采用，也没有这方面的意图。<br><br>
-                            近期流传的隐私传言，出发点或许是好意，但已造成不必要的焦虑。<em>在此郑重澄清：网站根本不具备视频传输功能。</em><br><br>
-                            <div class="splash-highlight-box">关闭浏览器摄像头权限是完全正确的做法——我支持每一位用户保护自己的隐私权益。若误解持续扩散，将考虑移除该装饰功能。</div>
-                        </div>
-                    </div>
-
-                    <div class="splash-slide" data-index="5">
-                        <div class="splash-slide-tag">入场承诺</div>
-                        <div class="splash-slide-title">请留下你的承诺</div>
-                        <div class="splash-pledge-desc">在下方输入框中，<em style="color:rgba(var(--accent-color-rgb,197,164,126),0.8);font-style:normal;">逐字抄写</em>以下承诺，即可进入网站。</div>
-                        <div class="splash-pledge-required" id="splash-pledge-text">我绝不盈利、造谣、污蔑或嘲讽，并对自己的使用行为负完全责任</div>
-                        <input class="splash-pledge-input" id="splash-pledge-input" type="text" placeholder="请在此逐字输入上方承诺…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-                        <div class="splash-pledge-hint" id="splash-pledge-hint">请完整输入上方承诺后方可进入</div>
-                    </div>
-
-                </div>
-
-                <div class="splash-divider"></div>
-                <div class="splash-footer" style="padding:0;">
-                    <button class="splash-btn splash-btn-ghost" id="splash-prev-btn" disabled>
-                        <i class="fas fa-arrow-left"></i> 上一页
-                    </button>
-                    <span class="splash-page-num" id="splash-page-num">1 / 7</span>
-                    <button class="splash-btn splash-btn-next" id="splash-next-btn">
-                        下一页 <i class="fas fa-arrow-right"></i>
-                    </button>
-                    <button class="splash-btn splash-btn-enter" id="splash-enter-btn" style="display:none;">
-                        进入 <i class="fas fa-heart"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div id="tour-overlay" class="tour-overlay">
     <div id="tour-highlight-box" class="tour-highlight-box"></div>
     <div id="tour-popover" class="tour-popover">
@@ -505,16 +415,6 @@
                             </svg>
                         </div>
                         <span class="app-name">TA的手机</span>
-                    </div>
-                    <div class="app-item" onclick="openApp('map')">
-                        <div class="app-icon" data-app="map">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;">
-                                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
-                                <line x1="8" y1="2" x2="8" y2="18"/>
-                                <line x1="16" y1="6" x2="16" y2="22"/>
-                            </svg>
-                        </div>
-                        <span class="app-name">Zmilk地图</span>
                     </div>
                 </div>
             </div>
@@ -1624,6 +1524,12 @@
                     </div>
                     <span class="ta-phone-app-name">礼物柜</span>
                 </div>
+                <div class="ta-phone-app" onclick="window.TaPhoneApp.showTaPhoneTab('music')">
+                    <div class="ta-phone-app-icon" style="background:linear-gradient(135deg,rgba(233,69,96,0.2),rgba(233,69,96,0.05));">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    </div>
+                    <span class="ta-phone-app-name">听歌</span>
+                </div>
             </div>
             <!-- 内容列表 -->
             <div class="ta-phone-content" id="ta-phone-content" style="display:none;">
@@ -1631,6 +1537,7 @@
                     <button class="ta-phone-tab" data-tab="chat" onclick="window.TaPhoneApp.showTaPhoneTab('chat')">聊天</button>
                     <button class="ta-phone-tab" data-tab="moments" onclick="window.TaPhoneApp.showTaPhoneTab('moments')">朋友圈</button>
                     <button class="ta-phone-tab" data-tab="gifts" onclick="window.TaPhoneApp.showTaPhoneTab('gifts')">礼物柜</button>
+                    <button class="ta-phone-tab" data-tab="music" onclick="window.TaPhoneApp.showTaPhoneTab('music')">听歌</button>
                 </div>
                 <div id="ta-phone-sort-bar" style="display:none;gap:6px;padding:6px 12px;justify-content:flex-end;flex-wrap:wrap;">
                     <button class="ta-phone-sort-btn active" data-sort="collected" onclick="window.TaPhoneApp.setChatSortMode('collected')" style="background:none;border:1px solid var(--border-color,rgba(255,255,255,0.15));border-radius:12px;padding:3px 10px;font-size:0.7rem;color:var(--text-light,#aaa);cursor:pointer;">按收藏时间</button>
@@ -4580,7 +4487,7 @@
 
 <div id="dg-editor-modal" style="display:none;"></div>
 
-    <!-- ★ [body级] 音乐播放器 / 灵动岛 / 邀约弹窗 必须放在脚本之前，否则 cacheDOM 时元素还不存在 -->
+    <!-- ★ [body级] 音乐播放器 / 灵动岛 / 邀约弹窗 / 排行榜弹窗 必须放在脚本之前 -->
     <div id="music-player-overlay">
         <div id="music-player-panel">
             <div class="music-panel-header">
@@ -4588,18 +4495,31 @@
                 <button class="music-minimize-btn" id="music-panel-minimize" title="最小化到灵动岛"><i class="fas fa-minus"></i></button>
                 <button class="music-close-btn" id="music-panel-close"><i class="fas fa-times"></i></button>
             </div>
+            <!-- ★ 播放状态模式显示 -->
+            <div class="music-mode-status" id="music-mode-status">
+                <span id="music-mode-text">🎧 独自听歌中</span>
+            </div>
             <div class="music-upload-area" id="music-upload-area">
                 <i class="fas fa-cloud-upload-alt"></i>
                 <p>点击或拖拽导入歌曲</p>
-                <small>支持 .mp3/.lrc 多选 + .zip 压缩包（≤40MB）</small>
+                <small>支持 .mp3/.lrc 多选 + .zip 压缩包（≤40MB）+ URL链接</small>
                 <input type="file" class="music-upload-input" id="music-file-input" accept=".mp3,.lrc" multiple>
                 <input type="file" class="music-upload-input" id="music-zip-input" accept=".zip">
+            </div>
+            <!-- ★ URL导入 -->
+            <div class="music-url-import" id="music-url-import">
+                <input type="text" class="music-url-input" id="music-url-input" placeholder="粘贴歌曲URL链接(.mp3)">
+                <button class="music-tool-btn small" id="music-btn-url-add">添加</button>
             </div>
             <div class="music-toolbar" id="music-toolbar">
                 <button class="music-tool-btn" id="music-btn-zip" title="导入ZIP压缩包"><i class="fas fa-file-archive"></i> ZIP导入</button>
                 <button class="music-tool-btn" id="music-btn-folder" title="读取本地文件夹（仅索引，不存文件）"><i class="fas fa-folder-open"></i> 打开文件夹</button>
                 <button class="music-tool-btn" id="music-btn-export" title="导出全部歌单为ZIP备份"><i class="fas fa-download"></i> 导出备份</button>
                 <button class="music-tool-btn danger" id="music-btn-batch-delete" title="批量删除选中歌曲"><i class="fas fa-trash-alt"></i> 批量删除</button>
+            </div>
+            <div class="music-toolbar" id="music-toolbar-2">
+                <button class="music-tool-btn" id="music-btn-invite" title="邀请梦角一起听歌"><i class="fas fa-user-plus"></i> 邀请梦角一起听</button>
+                <button class="music-tool-btn" id="music-btn-leaderboard" title="查看播放排行榜"><i class="fas fa-trophy"></i> 排行榜</button>
             </div>
             <div class="music-batch-bar" id="music-batch-bar" style="display:none;">
                 <span id="music-batch-count">已选 0 首</span>
@@ -4620,10 +4540,12 @@
                 <span id="music-dur-time">0:00</span>
             </div>
             <div class="music-controls">
+                <button class="music-ctrl-btn prev" id="music-btn-mode" title="播放模式"><i class="fas fa-exchange-alt" style="font-size:0.6rem;"></i></button>
                 <button class="music-ctrl-btn prev" id="music-btn-prev"><i class="fas fa-step-backward"></i></button>
                 <button class="music-ctrl-btn play paused" id="music-btn-play"><i class="fas fa-play"></i></button>
                 <button class="music-ctrl-btn next" id="music-btn-next"><i class="fas fa-step-forward"></i></button>
             </div>
+            <div class="music-play-mode" id="music-play-mode-text">顺序播放</div>
             <div class="music-volume-wrap">
                 <i class="fas fa-volume-down"></i>
                 <input type="range" class="music-volume-slider" id="music-volume-slider" min="0" max="100" value="80">
@@ -4631,6 +4553,33 @@
             </div>
             <div class="music-lyrics-preview" id="music-lyrics-preview"></div>
             <div class="music-playlist" id="music-playlist"></div>
+        </div>
+    </div>
+
+    <!-- ★ 排行榜弹窗 -->
+    <div id="music-leaderboard-overlay">
+        <div class="music-leaderboard-card">
+            <div class="music-leaderboard-header">
+                <h3><i class="fas fa-trophy"></i>播放排行榜</h3>
+                <button class="music-close-btn" id="music-leaderboard-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="music-leaderboard-tabs">
+                <button class="music-lb-tab active" data-lb="my-top">我听最多</button>
+                <button class="music-lb-tab" data-lb="together-top">一起听排行</button>
+                <button class="music-lb-tab" data-lb="partner-top">梦角听歌排行</button>
+                <button class="music-lb-tab" data-lb="total-time">总时长</button>
+            </div>
+            <div class="music-leaderboard-list" id="music-leaderboard-list"></div>
+        </div>
+    </div>
+
+    <!-- ★ 梦角行为弹窗 -->
+    <div id="music-partner-action-overlay">
+        <div class="music-partner-action-card">
+            <div class="music-partner-action-icon" id="partner-action-icon">🎵</div>
+            <div class="music-partner-action-title" id="partner-action-title">梦角切了首歌</div>
+            <div class="music-partner-action-subtitle" id="partner-action-subtitle"></div>
+            <button class="music-invite-accept" id="partner-action-ok">好的</button>
         </div>
     </div>
 
@@ -4656,44 +4605,7 @@
         </div>
     </div>
 
-    <!-- == 核心层 == -->
-    <script src="js/config.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/backup-engine.js"></script>
-    <script src="js/state.js"></script>
-    <script src="js/core.js"></script>
-    <script src="js/home.js"></script>
-
-    <!-- == 功能模块 == -->
-    <script src="js/features/mood.js"></script>
-    <script src="js/features/envelope.js"></script>
-    <script src="js/features/red-packet.js"></script>
-    <script src="js/features/reply-library.js"></script>
-    <script src="js/features/theme-editor.js"></script>
-    <script src="js/features/group-chat.js"></script>
-    <script src="js/features/call.js"></script>
-    <script src="js/diary.js"></script>
-    <script src="js/accounting.js"></script>
-    <script src="js/moyu.js"></script>
-    <script src="js/features/map.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="js/features/music-player.js"></script>
-
-    <!-- == 合并模块 == -->
-    <script src="js/games.js"></script>
-    <script src="js/features.js"></script>
-    <script src="js/data.js"></script>
-    <script src="js/onboarding.js"></script>
-    <script src="js/listeners.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/pet-game.js"></script>
-    <script src="js/ta-phone.js"></script>
-    <script src="js/shop.js"></script>
-    <script src="js/gift-cabinet.js"></script>
-    <script src="js/moments.js"></script>
-    <script src="js/spark.js"></script>
-
-    <!-- 火花弹窗（放在 body 直接子级，避免被父容器 overflow:hidden 裁剪） -->
+    <!-- 火花弹窗 -->
     <div class="spark-modal-overlay" id="spark-modal-overlay" onclick="SparkApp.closeSparkModal()">
         <div class="spark-modal" onclick="event.stopPropagation()">
             <div class="spark-modal-flame" id="spark-modal-flame">&#x1F525;</div>
@@ -4716,5 +4628,41 @@
             <button class="spark-modal-close" onclick="SparkApp.closeSparkModal()">知道了</button>
         </div>
     </div>
+
+    <!-- == 核心层 == -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/backup-engine.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/home.js"></script>
+
+    <!-- == 功能模块 == -->
+    <script src="js/features/mood.js"></script>
+    <script src="js/features/envelope.js"></script>
+    <script src="js/features/red-packet.js"></script>
+    <script src="js/features/reply-library.js"></script>
+    <script src="js/features/theme-editor.js"></script>
+    <script src="js/features/group-chat.js"></script>
+    <script src="js/features/call.js"></script>
+    <script src="js/diary.js"></script>
+    <script src="js/accounting.js"></script>
+    <script src="js/moyu.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="js/features/music-player.js"></script>
+
+    <!-- == 合并模块 == -->
+    <script src="js/games.js"></script>
+    <script src="js/features.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/onboarding.js"></script>
+    <script src="js/listeners.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/pet-game.js"></script>
+    <script src="js/ta-phone.js"></script>
+    <script src="js/shop.js"></script>
+    <script src="js/gift-cabinet.js"></script>
+    <script src="js/moments.js"></script>
+    <script src="js/spark.js"></script>
 </body>
 </html>
