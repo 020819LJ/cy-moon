@@ -1575,6 +1575,60 @@
   .pill-btn:active { background:var(--line); transform:scale(.98); }
   .pill-btn.danger { font-weight:600; }
   .pill-btn-group { display:flex; flex-direction:column; gap:8px; padding:4px 0; }
+
+  /* ─── 云端曲库弹窗 ─── */
+  .cml-search-wrap {
+    display:flex; align-items:center; gap:8px;
+    padding:10px 12px; margin:0 -2px 8px;
+    background:var(--bg-soft); border:1px solid var(--border);
+    border-radius:12px;
+  }
+  .cml-search-wrap svg { color:var(--text-mute); flex-shrink:0; }
+  .cml-search {
+    flex:1; min-width:0; border:none; background:none;
+    font-size:calc(var(--fs)*.9); color:var(--text); outline:none;
+  }
+  .cml-search::placeholder { color:var(--text-mute); }
+  .cml-status {
+    font-size:calc(var(--fs)*.72); color:var(--text-mute);
+    padding:0 2px 10px; letter-spacing:.5px;
+  }
+  .cml-status b { color:var(--text); font-weight:600; }
+  .cml-list {
+    display:flex; flex-direction:column;
+    max-height:52vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+  .cml-item {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 10px; border-radius:10px; cursor:pointer;
+    transition:background .12s; gap:8px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .cml-item:active { background:var(--bg-soft); }
+  .cml-item.active { background:var(--accent-soft); }
+  .cml-item.active .cml-item-title { color:var(--accent,#b04c60); }
+  .cml-item-left {
+    display:flex; align-items:center; gap:10px; min-width:0; flex:1;
+  }
+  .cml-item-left > svg { color:var(--text-mute); flex-shrink:0; opacity:.6; }
+  .cml-item.active .cml-item-left > svg { color:var(--accent,#b04c60); opacity:1; }
+  .cml-item-info { min-width:0; }
+  .cml-item-title {
+    font-size:calc(var(--fs)*.9); color:var(--text);
+    font-weight:500; white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; line-height:1.4;
+  }
+  .cml-item-artist {
+    font-size:calc(var(--fs)*.72); color:var(--text-mute);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    line-height:1.3;
+  }
+  .cml-item-check { flex-shrink:0; color:var(--accent,#b04c60); display:flex; align-items:center; }
+  .cml-empty {
+    text-align:center; padding:36px 14px;
+    font-size:calc(var(--fs)*.82); color:var(--text-mute);
+    letter-spacing:1px;
+  }
   
   /* ─── Toast ── */
   /* 完整替换 .toast */

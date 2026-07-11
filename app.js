@@ -12,7 +12,9 @@ window.DEFAULTS = {
     groupMode:false, chatStyle:1, inputPlaceholder:"", welcomeTitle:"",
     welcomeText:"", timeShowSeconds:false,
     oppTime:"", oppTimeDate:"", oppTimeSetAt:0, oppCustomTime:true,
-    musicUrl:"", activeSoundId:"__builtin_thud1__",
+    musicUrl:"", musicTitle:"", musicArtist:"", musicLrc:"",
+    cloudMusicIndexUrl:"https://raw.githubusercontent.com/fcylz/cy-music/main/index.json",
+    cloudMusicLastSync:0, activeSoundId:"__builtin_thud1__",
 customHomeCss:"", customHomeJs:"", homeVisibility:{}, hideAesBg:false, hidePolarBg:false,minimaxKey: "", minimaxVoice: "male-qn-qingse", autoTTS: false,ttsUrl: "https://api.minimax.chat/v1/t2a_v2",
     ttsKey: "",
     ttsGroupId: "",
@@ -86,6 +88,7 @@ if ("serviceWorker" in navigator) {
 let ctxTargetIdx=-1, musicAudio=null, unreadCount=0, popupTimer=null;
 let imgPickKey="", memberPickIdx=-1, isBatchSelecting=false;
 let cardsActiveTab="cards", isStickerBatchSelecting=false, stickerSelected=[];
+let cloudSongCache=null; // 云端曲库歌曲列表内存缓存
 
 const TEXT_GROUPS = [
   { h:"开屏", keys:[{k:"welcomeTitle",l:"标题"},{k:"welcomeText",l:"副文"}], isCfg:true },
@@ -1926,20 +1929,211 @@ window.closeApp = id=>{ document.getElementById(id).classList.remove("active"); 
 // ─── Music ───
 function bindMusicPlayer(){
   const btn=document.getElementById("musicPlay"); if(!btn) return;
-  btn.addEventListener("click",e=>{ e.stopPropagation();
-    const url = cfg.musicUrl || "https://files.catbox.moe/ca3rim.mp3";
+  btn.addEventListener("click",async e=>{ e.stopPropagation();
+    const url = cfg.musicUrl;
+    if(!url) { toast("请先从云端曲库选择歌曲", "warn"); return; }
     if(!musicAudio || musicAudio._srcUrl !== url){
-      if(musicAudio){ musicAudio.pause(); }
+      if(musicAudio){ musicAudio.pause(); musicAudio=null; }
+      updateCloudStatus("载入中…");
       musicAudio=new Audio(url);
       musicAudio._srcUrl = url;
       musicAudio.loop = true;
       musicAudio.addEventListener("pause",()=>updatePlayIcon(false));
-      musicAudio.addEventListener("play",()=>updatePlayIcon(true));
+      musicAudio.addEventListener("play",()=>{ updatePlayIcon(true); updateCloudStatus(""); });
+      musicAudio.addEventListener("error",()=>{ toast("音频加载失败，请换一首", "warn"); updatePlayIcon(false); });
+      musicAudio.addEventListener("canplaythrough",()=>{ updateCloudStatus(""); },{once:true});
     }
-    if(musicAudio.paused) musicAudio.play().catch(()=>toast("载入受阻")); else musicAudio.pause();
+    if(musicAudio.paused){
+      try { await musicAudio.play(); }
+      catch(e) {
+        if(e.name==="NotAllowedError") toast("浏览器拦截了自动播放，请再点一次", "warn");
+        else toast("播放失败:"+e.message, "warn");
+      }
+    } else { musicAudio.pause(); }
   });
 }
 function updatePlayIcon(playing){ const btn=document.getElementById("musicPlay"); if(!btn) return; btn.classList.toggle("on",playing); document.getElementById("playIcon").innerHTML=playing?`<rect x="6" y="5" width="3" height="14" fill="currentColor"/><rect x="15" y="5" width="3" height="14" fill="currentColor"/>`:`<polygon points="5 4 21 12 5 20 5 4" fill="currentColor"/>`; document.getElementById("musicCard")?.classList.toggle("playing",playing); document.getElementById("musicEq")?.classList.toggle("on",playing); }
+
+// ═══ 云端曲库 ═══
+const CLOUD_MUSIC_LF_KEY = "cy-music-index";
+
+// 初始化 localforage 实例（专用于曲库缓存）
+let _musicLF = null;
+function _ensureMusicLF() {
+  if (!_musicLF && typeof localforage !== "undefined") {
+    _musicLF = localforage.createInstance({ name: "SilentChamberMusicCache" });
+  }
+  return _musicLF;
+}
+
+// 从云端获取 index.json（带 localforage 持久缓存）
+async function fetchCloudIndex(forceRefresh) {
+  const lf = _ensureMusicLF();
+  const indexUrl = cfg.cloudMusicIndexUrl || "https://raw.githubusercontent.com/fcylz/cy-music/main/index.json";
+
+  // 先从内存缓存取
+  if (!forceRefresh && cloudSongCache && cloudSongCache.length) return cloudSongCache;
+
+  // 再从 localforage 取
+  if (!forceRefresh && lf) {
+    try {
+      const cached = await lf.getItem(CLOUD_MUSIC_LF_KEY);
+      if (cached && cached.songs && cached.songs.length) {
+        cloudSongCache = cached.songs;
+        updateCloudStatus(`已缓存 ${cached.songs.length} 首 · ${new Date(cached.at).toLocaleDateString()}`);
+        return cached.songs;
+      }
+    } catch (e) { /* fall through */ }
+  }
+
+  // 网络获取
+  updateCloudStatus("正在连接云端曲库…");
+  try {
+    const res = await fetch(indexUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const songs = await res.json();
+    if (!Array.isArray(songs) || !songs.length) throw new Error("索引为空");
+
+    cloudSongCache = songs;
+
+    // 写入 localforage
+    if (lf) {
+      try { await lf.setItem(CLOUD_MUSIC_LF_KEY, { songs, at: Date.now() }); } catch (e) {}
+    }
+
+    cfg.cloudMusicLastSync = Date.now();
+    saveAllDebounced();
+    updateCloudStatus(`共 ${songs.length} 首 · 已同步`);
+    return songs;
+  } catch (e) {
+    updateCloudStatus("连接失败，使用缓存数据");
+    if (cloudSongCache) return cloudSongCache;
+    // 最后尝试 localforage
+    if (lf) {
+      try { const c = await lf.getItem(CLOUD_MUSIC_LF_KEY); if (c && c.songs) { cloudSongCache = c.songs; updateCloudStatus(`共 ${c.songs.length} 首 · 离线缓存`); return c.songs; } } catch(e2) {}
+    }
+    toast("无法获取云端曲库", "warn");
+    return [];
+  }
+}
+
+function updateCloudStatus(msg) {
+  const el = document.getElementById("cloudMusicStatus");
+  if (el) { el.style.display = ""; el.textContent = msg; }
+}
+
+// 强制刷新云端索引
+window.refreshCloudIndex = async () => {
+  const lf = _ensureMusicLF();
+  if (lf) { try { await lf.removeItem(CLOUD_MUSIC_LF_KEY); } catch(e) {} }
+  cloudSongCache = null;
+  await fetchCloudIndex(true);
+  toast("曲库已刷新");
+};
+
+// 打开云端曲库浏览弹窗
+window.openCloudMusicLibrary = async () => {
+  const songs = await fetchCloudIndex();
+  if (!songs.length) { toast("曲库无数据", "warn"); return; }
+  renderCloudModal(songs);
+};
+
+// 解析歌名 → { title, artist }
+function _parseCloudSongName(name) {
+  const idx = name.lastIndexOf("-");
+  if (idx > 0) {
+    return { title: name.substring(0, idx).trim(), artist: name.substring(idx + 1).trim() };
+  }
+  return { title: name, artist: "" };
+}
+
+// 渲染云端曲库弹窗
+function renderCloudModal(songs) {
+  let html = `
+    <div class="cml-search-wrap">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="cml-search" id="cmlSearch" placeholder="搜索歌曲 / 歌手…" oninput="filterCloudSongs()">
+    </div>
+    <div class="cml-status" id="cmlStatus">当前: <b>${escapeHtml(cfg.musicTitle || "未选择")}</b>${cfg.musicArtist ? " — " + escapeHtml(cfg.musicArtist) : ""}</div>
+    <div class="cml-list" id="cmlList"></div>
+  `;
+  modal("云端曲库", html);
+  window._cmlSongs = songs;
+  renderCloudSongList(songs);
+}
+
+// 搜索过滤
+window.filterCloudSongs = () => {
+  const q = (document.getElementById("cmlSearch")?.value || "").trim().toLowerCase();
+  const all = window._cmlSongs || [];
+  if (!q) return renderCloudSongList(all);
+  const filtered = all.filter(s => s.name.toLowerCase().includes(q));
+  renderCloudSongList(filtered);
+};
+
+// 渲染歌曲列表
+function renderCloudSongList(songs) {
+  const el = document.getElementById("cmlList");
+  if (!el) return;
+
+  if (!songs.length) {
+    el.innerHTML = '<div class="cml-empty">未找到匹配歌曲</div>';
+    return;
+  }
+
+  const currentUrl = cfg.musicUrl || "";
+  el.innerHTML = songs.map((s, i) => {
+    const { title, artist } = _parseCloudSongName(s.name);
+    const isActive = currentUrl === s.mp3;
+    return `
+      <div class="cml-item${isActive ? " active" : ""}" onclick="selectCloudSong(${i})" data-idx="${i}">
+        <div class="cml-item-left">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>
+          <div class="cml-item-info">
+            <div class="cml-item-title">${escapeHtml(title)}</div>
+            <div class="cml-item-artist">${escapeHtml(artist)}</div>
+          </div>
+        </div>
+        <div class="cml-item-check">${isActive ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>' : ""}</div>
+      </div>`;
+  }).join("");
+
+  // 为当前项建立正确的 index 映射
+  window._cmlFiltered = songs;
+}
+
+// 选择歌曲
+window.selectCloudSong = async (filteredIdx) => {
+  const obj = window._cmlFiltered ? window._cmlFiltered[filteredIdx] : undefined;
+  if (!obj) return;
+
+  const { title, artist } = _parseCloudSongName(obj.name);
+
+  cfg.musicUrl = obj.mp3;
+  cfg.musicTitle = title;
+  cfg.musicArtist = artist;
+  cfg.musicLrc = obj.lrc || "";
+
+  // 同步显示到主页
+  texts.l1_song = title;
+  texts.l1_artist = artist;
+
+  await saveAll();
+  syncUI();
+
+  // 刷新弹窗列表高亮
+  if (window._cmlSongs) renderCloudSongList(window._cmlSongs);
+  closeModal();
+  toast(`已选择: ${title}`);
+
+  // 如果正在播放，立即切换
+  if (musicAudio && !musicAudio.paused) {
+    musicAudio.pause();
+    musicAudio = null;
+    const btn = document.getElementById("musicPlay");
+    if (btn) btn.click();
+  }
+};
 
 // ─── Welcome ───
 // ─── Welcome canvas particles + typographic animation ───
