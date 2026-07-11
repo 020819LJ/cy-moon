@@ -2196,7 +2196,9 @@ function buildTypoWelcome() {
   seal.className = "w-seal";
   stage.appendChild(seal);
 }
-document.getElementById("welcome").addEventListener("click",()=>{ const w=document.getElementById("welcome"); w.classList.add("gone"); setTimeout(()=>w.style.display="none",800); chime(); });
+// 3秒后自动进入，无需点击
+setTimeout(()=>{ const w=document.getElementById("welcome"); if(!w||w.classList.contains("gone"))return; w.classList.add("gone"); setTimeout(()=>w.style.display="none",800); chime(); },3000);
+document.getElementById("welcome").addEventListener("click",()=>{ const w=document.getElementById("welcome"); if(w.classList.contains("gone"))return; w.classList.add("gone"); setTimeout(()=>w.style.display="none",800); chime(); });
 
 document.addEventListener("DOMContentLoaded", init);
 window.openFontModal = () => {
@@ -2462,7 +2464,7 @@ window.checkLock = () => {
   // 将输入的字符串转化为异或字符比对（混淆密码机制，代码中绝不包含明文答案）
   const hashed = Array.from(val.toLowerCase()).map(c => String.fromCharCode(c.charCodeAt(0) ^ 42)).join("");
   
-  if (hashed === "LISBFF@") {
+  if (hashed === "RLISFP") {
     localStorage.setItem("sc_authed", "true");
     document.documentElement.classList.add("is-authenticated");
     lockScreen.classList.add("gone");
