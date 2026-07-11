@@ -2557,7 +2557,22 @@ window.filterCloudStickers = () => {
   ));
 };
 
-function _stickerSrc(s) { return s.src || s.url || ""; }
+// 从云表情索引 URL 推导出图片资源的基础路径（仓库根目录）
+// 例如 https://…/cy-chat/main/Meme/meme.json → https://…/cy-chat/main/
+function _cloudStickerBase() {
+  const idx = cfg.cloudStickerIndexUrl || "https://raw.githubusercontent.com/fcylz/cy-chat/main/Meme/meme.json";
+  // meme.json 内的 url 字段是相对于仓库根的（如 Meme/images/xxx.jpg），所以取 /main/ 层级
+  const m = idx.match(/^(.+\/[^\/]+\/)Meme\/meme\.json$/);
+  if (m) return m[1];
+  // 兜底：去掉 meme.json，再退两层目录
+  return idx.replace(/Meme\/meme\.json$/, "");
+}
+function _stickerSrc(s) {
+  const raw = s.src || s.url || "";
+  if (!raw || /^https?:\/\//.test(raw)) return raw;
+  // 相对路径：拼到 Meme/ 目录下
+  return _cloudStickerBase() + raw;
+}
 function _stickerName(s) { return s.name || s.title || s.label || "未命名"; }
 
 function renderCloudStickerGrid(stks) {
