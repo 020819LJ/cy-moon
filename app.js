@@ -503,20 +503,20 @@ function bindFilePickers(){
   document.getElementById("fpSticker").addEventListener("change", onPickSticker);
 }
 
-function onPickImg(e){
+async function onPickImg(e){
   const f=e.target.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=async ev=>{
-    const data=ev.target.result;
-    if(imgPickKey==="__memberAvatar__"&&memberPickIdx>-1){ groupMembers[memberPickIdx].avatar=data; await saveAll(); renderMembers(); return; }
-    if(imgPickKey==="__carousel__"){ carousel.push({id:"car"+Date.now(),data}); await saveAll(); renderCarousel(); renderCarouselManage(); return; }
-    if(imgPickKey==="__mosaic_new__"){ if(!imgs.mosaic) imgs.mosaic=[]; if(imgs.mosaic.length<4) imgs.mosaic.push(data); await saveAll(); renderMosaic(); return; }
-    if(imgPickKey.startsWith("__mosaic_")){ const idx=parseInt(imgPickKey.split("_")[2]); if(imgs.mosaic?.[idx]!==undefined){ imgs.mosaic[idx]=data; await saveAll(); renderMosaic(); } return; }
-    imgs[imgPickKey]=data; await saveAll();
-    if(imgPickKey==="aes_body_bg") { applyAesBodyBg(); toast("已更新"); return; }
-    syncUI(); toast("已更新");
-  };
-  r.readAsDataURL(f);
+  const result = await _compressImg(f, 1200, 0.75);
+  if(!result) return;
+  const data = result.data;
+  const savedMB = ((result.origSize - result.newSize) / 1024 / 1024).toFixed(2);
+  if(result.newSize < result.origSize) toast(`图片已压缩，节省约 ${savedMB}MB`);
+  if(imgPickKey==="__memberAvatar__"&&memberPickIdx>-1){ groupMembers[memberPickIdx].avatar=data; await saveAll(); renderMembers(); return; }
+  if(imgPickKey==="__carousel__"){ carousel.push({id:"car"+Date.now(),data}); await saveAll(); renderCarousel(); renderCarouselManage(); return; }
+  if(imgPickKey==="__mosaic_new__"){ if(!imgs.mosaic) imgs.mosaic=[]; if(imgs.mosaic.length<4) imgs.mosaic.push(data); await saveAll(); renderMosaic(); return; }
+  if(imgPickKey.startsWith("__mosaic_")){ const idx=parseInt(imgPickKey.split("_")[2]); if(imgs.mosaic?.[idx]!==undefined){ imgs.mosaic[idx]=data; await saveAll(); renderMosaic(); } return; }
+  imgs[imgPickKey]=data; await saveAll();
+  if(imgPickKey==="aes_body_bg") { applyAesBodyBg(); toast("已更新"); return; }
+  syncUI(); toast("已更新");
 }
 
 function onPickSnd(e){
@@ -543,7 +543,8 @@ function onPickSnd(e){
 // ─── Sound ───
 function makeDullThud1() {
   try {
-    const c = new (window.AudioContext || window.webkitAudioContext)();
+    const c = getAudioCtx();
+    if (c.state === "suspended") c.resume();
     const o = c.createOscillator(), g = c.createGain();
     o.connect(g); g.connect(c.destination);
     o.type = "sine"; o.frequency.setValueAtTime(120, c.currentTime);
@@ -555,7 +556,8 @@ function makeDullThud1() {
 }
 function makeDullThud2() {
   try {
-    const c = new (window.AudioContext || window.webkitAudioContext)();
+    const c = getAudioCtx();
+    if (c.state === "suspended") c.resume();
     const buf = c.createBuffer(1, c.sampleRate * 0.18, c.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) {
@@ -603,7 +605,7 @@ function renderSoundList(){
     playBtn.onclick = () => {
       if(s.id==="__builtin_thud1__") makeDullThud1();
       else if(s.id==="__builtin_thud2__") makeDullThud2();
-      else new Audio(s.data).play().catch(()=>{});
+      else _pooledAudio(s.data);
     };
     ops.appendChild(playBtn);
     if(!isBuiltin){
@@ -615,14 +617,25 @@ function renderSoundList(){
     c.appendChild(li);
   });
 }
+// ⚡ 共享音频池：避免频繁 new Audio() 导致内存堆积（最多复用 3 个实例）
+let _audioPool = [];
+let _audioPoolIdx = 0;
+function _pooledAudio(src) {
+  let a = _audioPool[_audioPoolIdx];
+  if (!a) { a = new Audio(); _audioPool[_audioPoolIdx] = a; }
+  _audioPoolIdx = (_audioPoolIdx + 1) % 3;
+  a.src = src;
+  a.play().catch(() => {});
+  return a;
+}
 function playSoundById(id) {
   if (id === "__builtin_thud1__") { makeDullThud1(); return; }
   if (id === "__builtin_thud2__") { makeDullThud2(); return; }
   const s = sounds.find(x => x.id === id);
-  if (s) new Audio(s.data).play().catch(() => {});
+  if (s) _pooledAudio(s.data);
   else makeDullThud1();
 }
-window.playSnd = i=>{ if(sounds[i]) new Audio(sounds[i].data).play().catch(()=>{}); };
+window.playSnd = i=>{ if(sounds[i]) _pooledAudio(sounds[i].data); };
 window.delSnd  = async i=>{ sounds.splice(i,1); await saveAll(); renderSoundList(); };
 function chime(){ playSoundById(cfg.activeSoundId || "__builtin_thud1__"); }
 window.testSound = ()=>{ playSoundById(cfg.activeSoundId || "__builtin_thud1__"); };
@@ -1212,41 +1225,46 @@ function jumpToMsg(t){
 function bindChatScroll() {
   const f = document.getElementById("chatFlow");
   if (!f) return;
+  // ⚡ 合并 scroll 处理：throttle 到 ~60fps + 统一底部追踪
+  let scrollTicking = false;
+  let wasNearBottom = true;
   f.addEventListener("scroll", () => {
-    if (f.scrollHeight - f.scrollTop - f.clientHeight < 60) unreadCount = 0;
-    updateScrollBot();
-  });
-  // ⚡ 移动端键盘弹出/收起：ResizeObserver 监听 chatFlow 自身高度变化
-  // 比 visualViewport 更可靠，直接感知 flex:1 容器因键盘伸缩
+    if (scrollTicking) return;
+    scrollTicking = true;
+    requestAnimationFrame(() => {
+      const dist = f.scrollHeight - f.scrollTop - f.clientHeight;
+      if (dist < 60) unreadCount = 0;
+      wasNearBottom = dist < 80;
+      updateScrollBot();
+      scrollTicking = false;
+    });
+  }, { passive: true });
+  // ⚡ 移动端键盘弹出/收起：ResizeObserver 监听 #chatApp
   const chatApp = document.getElementById("chatApp");
   if (!chatApp) return;
   let lastCFH = f.clientHeight;
-  let wasNearBottom = true;
+  let _kbTimers = []; // 追踪键盘动画定时器，防止堆积
   const scrollToBottom = () => {
     if (f.lastElementChild) {
       f.lastElementChild.scrollIntoView({ block: "end", behavior: "instant" });
     }
   };
-  // 监听 #chatApp：键盘弹出时 app 高度变化 → chatFlow 随之变化
   const ro = new ResizeObserver(() => {
     const newH = f.clientHeight;
     if (newH === lastCFH) return;
     const shrinking = newH < lastCFH;
     lastCFH = newH;
-    // 缩小（键盘弹出）且之前接近底部 → 滚到底
+    // 清理上一次残留的键盘追踪定时器
+    _kbTimers.forEach(clearTimeout);
+    _kbTimers = [];
     if (shrinking && wasNearBottom) {
       requestAnimationFrame(scrollToBottom);
-      // 键盘动画可能持续 300-500ms，多帧追踪
-      setTimeout(scrollToBottom, 60);
-      setTimeout(scrollToBottom, 160);
-      setTimeout(scrollToBottom, 320);
+      _kbTimers.push(setTimeout(scrollToBottom, 60));
+      _kbTimers.push(setTimeout(scrollToBottom, 160));
+      _kbTimers.push(setTimeout(scrollToBottom, 320));
     }
   });
   ro.observe(chatApp);
-  // 持续追踪用户是否在底部（用于键盘弹出时判断）
-  f.addEventListener("scroll", () => {
-    wasNearBottom = f.scrollHeight - f.scrollTop - f.clientHeight < 80;
-  });
 }
 function updateScrollBot(){ const f=document.getElementById("chatFlow"); if(!f) return; const near=f.scrollHeight-f.scrollTop-f.clientHeight<60; document.getElementById("scrollBot").classList.toggle("on",!near&&chats.length>5); const ub=document.getElementById("unreadBadge"); if(unreadCount>0&&!near){ub.classList.remove("hidden");ub.innerText=unreadCount;}else ub.classList.add("hidden"); }
 window.scrollChatBottom = ()=>{ const f=document.getElementById("chatFlow"); f.scrollTo({top:f.scrollHeight,behavior:"smooth"}); unreadCount=0; };
@@ -1260,7 +1278,7 @@ window.sendMsg = async()=>{
   if(t.includes("【翻译】")){ const p=t.split("【翻译】"); userText=p[0].trim(); userTrans=p[1].trim(); }
   const msgObj={sender:"self",text:userText,translation:userTrans,time:fmtTime(now),timeWithSec:fmtTime(now,true),date:fmtDate(now),ts:now.getTime()};
   if(pendingQuote) msgObj.quote=pendingQuote;
-  chats.push(msgObj); document.querySelectorAll(".msg-in").forEach(el=>el.value=""); window.clearPendingQuote();
+  _addChatMsg(msgObj); document.querySelectorAll(".msg-in").forEach(el=>el.value=""); window.clearPendingQuote();
   if(cfg.soundOn) playSoundById(cfg.activeSoundId || "__builtin_thud1__");
   if(navigator.vibrate) navigator.vibrate(18);
   const _sb=document.querySelector('.input-style-1:not(.hidden) .in-btn.send,.input-style-2:not(.hidden) .i2-send,.input-style-3:not(.hidden) .i3-send:not(.alt),.input-style-4:not(.hidden) .i4-send:not(.alt)');
@@ -1321,7 +1339,7 @@ async function fireReply(){
       let nameS=texts.opp_name||"ta", avatarS=imgs.oppAvatar||"";
       if(cfg.groupMode&&groupMembers.length){ const ms=groupMembers[Math.floor(Math.random()*groupMembers.length)]; nameS=ms.name; avatarS=ms.avatar||window.DEFAULTS.PH_SVG; }
       // ⭐ 记录彼时虚拟时钟值，避免所有历史消息显示同一个实时时钟
-      chats.push({sender:"opp",text:"[表情包]",sticker:true,stickerId:stk.id,time:fmtTime(now),timeWithSec:fmtTime(now,true),date:fmtDate(now),ts:now.getTime(),name:nameS,avatar:avatarS,oppTimeVal:cfg.oppCustomTime&&cfg.oppTime?getOppDisplayTime():""});
+      _addChatMsg({sender:"opp",text:"[表情包]",sticker:true,stickerId:stk.id,time:fmtTime(now),timeWithSec:fmtTime(now,true),date:fmtDate(now),ts:now.getTime(),name:nameS,avatar:avatarS,oppTimeVal:cfg.oppCustomTime&&cfg.oppTime?getOppDisplayTime():""});
       await saveAll();
       if(currentApp==="chatApp"){ const f=document.getElementById("chatFlow"); const near=f.scrollHeight-f.scrollTop-f.clientHeight<80; if(!near) unreadCount++; appendNewChats(); }
       else { if(cfg.popupOn) showPopup("[表情包]",nameS,avatarS); }
@@ -1350,7 +1368,7 @@ async function fireReply(){
       for(let fi=0;fi<arr.length-1;fi++){
         const nt=new Date(now.getTime()+fi*500);
         // ⭐ 记录虚拟时钟值
-        chats.push({sender:"opp",text:arr[fi],translation:transArr[fi]||"",time:fmtTime(nt),timeWithSec:fmtTime(nt,true),date:fmtDate(nt),ts:nt.getTime(),lyric:false,quote:"",name:name2,avatar:avatar2,fragments:[arr[fi]],oppTimeVal:cfg.oppCustomTime&&cfg.oppTime?getOppDisplayTime():""});
+        _addChatMsg({sender:"opp",text:arr[fi],translation:transArr[fi]||"",time:fmtTime(nt),timeWithSec:fmtTime(nt,true),date:fmtDate(nt),ts:nt.getTime(),lyric:false,quote:"",name:name2,avatar:avatar2,fragments:[arr[fi]],oppTimeVal:cfg.oppCustomTime&&cfg.oppTime?getOppDisplayTime():""});
       }
       text=arr[arr.length-1]; trans=transArr[arr.length-1]||"";
     }
@@ -1361,7 +1379,7 @@ async function fireReply(){
   let name=texts.opp_name||"ta", avatar=imgs.oppAvatar||"";
   if(cfg.groupMode&&groupMembers.length){ const m=groupMembers[Math.floor(Math.random()*groupMembers.length)]; name=m.name; avatar=m.avatar||window.DEFAULTS.PH_SVG; }
   // ⭐ 记录虚拟时钟值：每条对方消息锁定彼时的钟表读数
-  chats.push({sender:"opp",text,translation:trans,time:fmtTime(now),timeWithSec:fmtTime(now,true),date:fmtDate(now),ts:now.getTime(),lyric:isLyric,quote,name,avatar,fragments,oppTimeVal:cfg.oppCustomTime&&cfg.oppTime?getOppDisplayTime():""});
+  _addChatMsg({sender:"opp",text,translation:trans,time:fmtTime(now),timeWithSec:fmtTime(now,true),date:fmtDate(now),ts:now.getTime(),lyric:isLyric,quote,name,avatar,fragments,oppTimeVal:cfg.oppCustomTime&&cfg.oppTime?getOppDisplayTime():""});
   await saveAll();
   if(currentApp==="chatApp"){ const f=document.getElementById("chatFlow"); const near=f.scrollHeight-f.scrollTop-f.clientHeight<80; if(!near) unreadCount++; appendNewChats(); }
   else { if(cfg.popupOn) showPopup(text,name,avatar); }
@@ -1396,7 +1414,62 @@ function scheduleActive(resume = false){
   }, wait);
 }
 
-window.clearAllChats = async()=>{ if(!confirm("确实要清空？")) return; chats=[]; openTrans=new Set(); await saveAll(); renderChats(); };
+window.clearAllChats = async()=>{ if(!confirm("确实要清空？")) return; chats=[]; openTrans=new Set(); await saveAll(); renderChats(); toast("已清空"); };
+// ⭐ 聊天记录自动裁剪：保留最近 N 条
+const CHAT_MAX = 2000;
+function _addChatMsg(msg) {
+  chats.push(msg);
+  if (chats.length > CHAT_MAX + 500) {
+    chats = chats.slice(-CHAT_MAX);
+    saveAllDebounced();
+  }
+}
+// ⭐ 存储用量估算
+window.showStorageInfo = async () => {
+  let html = '<div style="font-size:12px;line-height:1.8;padding:4px 0;">';
+  try {
+    const est = await navigator.storage.estimate();
+    if (est.usage !== undefined) {
+      html += `<div>📦 总用量：<b>${(est.usage/1024/1024).toFixed(2)} MB</b></div>`;
+      if (est.quota) html += `<div>📊 配额：${(est.quota/1024/1024).toFixed(0)} MB（${(est.usage/est.quota*100).toFixed(1)}%）</div>`;
+    }
+  } catch(e) {}
+  // 详细数据量统计
+  const imgSize = JSON.stringify(imgs).length;
+  const chatSize = JSON.stringify(chats).length;
+  const stickerSize = JSON.stringify(stickers).length;
+  const cardSize = JSON.stringify(cards).length;
+  const soundSize = JSON.stringify(sounds).length;
+  const ttsCount = (()=>{ let c=0; for(let i=0;i<localStorage.length;i++) if(localStorage.key(i).startsWith('ttsCache_')) c++; return c; })();
+  const cfgSize = JSON.stringify(cfg).length + JSON.stringify(texts).length;
+  html += `<div>━━━━━━━━━━━━━</div>`;
+  html += `<div>🖼 图片：<b>${(imgSize/1024).toFixed(0)} KB</b></div>`;
+  html += `<div>💬 聊天：<b>${chats.length} 条</b>（${(chatSize/1024).toFixed(0)} KB）</div>`;
+  if(stickers.length) html += `<div>😊 表情：<b>${stickers.length} 个</b>（${(stickerSize/1024).toFixed(0)} KB）</div>`;
+  html += `<div>📝 字卡：<b>${cards.length} 张</b>（${(cardSize/1024).toFixed(0)} KB）</div>`;
+  html += `<div>⚙ 配置+文案：${(cfgSize/1024).toFixed(0)} KB</div>`;
+  if(sounds.length) html += `<div>🔊 音效：<b>${sounds.length} 个</b>（${(soundSize/1024).toFixed(0)} KB）</div>`;
+  html += `<div>🎵 TTS缓存：<b>${ttsCount} 条</b></div>`;
+  html += '</div>';
+  modal('存储用量', html);
+};
+// ⭐ 清理TTS缓存
+window.clearTTSCache = () => {
+  if(!confirm('清除所有 TTS 语音缓存？（不影响其他数据）')) return;
+  const keys = [];
+  for(let i=0;i<localStorage.length;i++) {
+    const k = localStorage.key(i);
+    if(k.startsWith('ttsCache_')) keys.push(k);
+  }
+  keys.forEach(k => localStorage.removeItem(k));
+  _ttsMem.clear();
+  toast(`已清除 ${keys.length} 条 TTS 缓存`);
+};
+// ⭐ 清理旧聊天记录（手动）
+window.trimOldChats = () => {
+  if(!confirm(`保留最近 ${CHAT_MAX} 条，删除更早的 ${Math.max(0,chats.length-CHAT_MAX)} 条？`)) return;
+  chats = chats.slice(-CHAT_MAX); saveAll(); renderChats(); toast('已清理');
+};
 
 // ─── Popup ───
 function bindPopup(){
@@ -1422,13 +1495,19 @@ function hidePopup(){ document.getElementById("msgPopup").classList.remove("on")
 
 // ─── Search ───
 window.toggleSearch = ()=>{ const sp=document.getElementById("searchPane"); sp.classList.toggle("on"); if(sp.classList.contains("on")){document.getElementById("chatSearch").focus();doSearchChat();} };
+// ⚡ 实际搜索逻辑（无防抖）：由 JS 直接调用（打开搜索、点击搜索按钮）
 window.doSearchChat = ()=>{
   const q=document.getElementById("chatSearch").value.trim().toLowerCase();
   const res=document.getElementById("searchRes"); res.innerHTML="";
   if(!q){res.innerHTML=`<div class="empty-tip">…</div>`;return;}
-  const matches=chats.map((c,i)=>({c,i})).filter(x=>!x.c.lyric&&x.c.text.toLowerCase().includes(q));
+  const matches=[];
+  for(let i=0;i<chats.length;i++){
+    const c=chats[i];
+    if(!c.lyric&&c.text.toLowerCase().includes(q)) matches.push({c,i});
+    if(matches.length>=30) break; // ⚡ 提前截断，不需要处理全部
+  }
   if(!matches.length){res.innerHTML=`<div class="empty-tip">无结果</div>`;return;}
-  matches.slice(0,30).forEach(x=>{
+  matches.forEach(x=>{
     const d=document.createElement("div"); d.className="ri";
     const from=x.c.sender==="self"?(texts.l1_name||"我"):(x.c.name||texts.opp_name||"对方");
     const hl=escapeHtml(x.c.text).replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi"),m=>`<mark>${m}</mark>`);
@@ -1436,6 +1515,18 @@ window.doSearchChat = ()=>{
     d.addEventListener("click",()=>{ document.getElementById("searchPane").classList.remove("on"); jumpToMsg(x.c.text); });
     res.appendChild(d);
   });
+};
+// ⚡ 防抖版：oninput 使用，避免每次按键都遍历全部聊天记录
+let _searchDebounce = null;
+window.doSearchChatDebounced = ()=>{
+  clearTimeout(_searchDebounce);
+  _searchDebounce = setTimeout(() => doSearchChat(), 200);
+};
+// ⚡ 卡牌搜索防抖：oninput 不每次按键都全量渲染
+let _cardRenderTimer = null;
+window.renderCardsDebounced = () => {
+  clearTimeout(_cardRenderTimer);
+  _cardRenderTimer = setTimeout(() => window.renderCards(), 200);
 };
 
 // ─── Cards ───
@@ -1690,13 +1781,13 @@ window.addStickersFromUrls = async () => {
   toast(skipped?`已添加 ${added} 个（跳过 ${skipped} 个重复）`:`已添加 ${added} 个`);
 };
 window.triggerStickerPick = () => { closeModal(); const i=document.getElementById("fpSticker"); i.value=""; i.click(); };
-// ⭐ 图片压缩存储：限制最大宽度400px+JPEG质量0.6，将base64体积从数MB降低到~50KB
-function _compressStickerImage(file) {
+// ⭐ 通用图片压缩：限制宽度+JPEG质量，大幅降低Base64体积
+function _compressImg(file, maxW = 800, quality = 0.75) {
   return new Promise((resolve) => {
-    // GIF/PNG小文件直接原样存储，避免压缩反而变大
+    // ≤50KB 小文件原样保留
     if (file.size < 50000) {
       const r = new FileReader();
-      r.onload = () => resolve(r.result);
+      r.onload = () => resolve({ data: r.result, origSize: file.size, newSize: r.result.length });
       r.onerror = () => resolve(null);
       r.readAsDataURL(file);
       return;
@@ -1705,31 +1796,29 @@ function _compressStickerImage(file) {
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const MAX_W = 400;
       let w = img.width, h = img.height;
-      if (w <= MAX_W) {
+      if (w <= maxW && file.type !== 'image/png') {
         const r = new FileReader();
-        r.onload = () => resolve(r.result);
+        r.onload = () => resolve({ data: r.result, origSize: file.size, newSize: r.result.length });
         r.onerror = () => resolve(null);
         r.readAsDataURL(file);
         return;
       }
-      h = Math.round(h * (MAX_W / w));
-      w = MAX_W;
+      if (w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.6));
+      const data = canvas.toDataURL('image/jpeg', quality);
+      resolve({ data, origSize: file.size, newSize: data.length });
     };
-    img.onerror = () => { URL.revokeObjectURL(url);
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.onerror = () => resolve(null);
-      r.readAsDataURL(file);
-    };
+    img.onerror = () => { URL.revokeObjectURL(url); const r = new FileReader(); r.onload = () => resolve({ data: r.result, origSize: file.size, newSize: r.result.length }); r.onerror = () => resolve(null); r.readAsDataURL(file); };
     img.src = url;
   });
+}
+// ⭐ 表情包压缩：限制最大宽度400px+JPEG质量0.6
+function _compressStickerImage(file) {
+  return _compressImg(file, 400, 0.6).then(r => r ? r.data : null);
 }
 function onPickSticker(e){
   const fs=Array.from(e.target.files); if(!fs.length) return;
@@ -1766,7 +1855,7 @@ function renderStickerPickerGrid(){
 window.sendSticker = async id => {
   const s=stickers.find(x=>x.id===id); if(!s) return;
   const now=new Date();
-  chats.push({sender:"self", text:"[表情包]", sticker:true, stickerId:id, time:fmtTime(now), timeWithSec:fmtTime(now,true), date:fmtDate(now), ts:now.getTime()});
+  _addChatMsg({sender:"self", text:"[表情包]", sticker:true, stickerId:id, time:fmtTime(now), timeWithSec:fmtTime(now,true), date:fmtDate(now), ts:now.getTime()});
   window.clearPendingQuote();
   if(cfg.soundOn) playSoundById(cfg.activeSoundId || "__builtin_thud1__");
   if(navigator.vibrate) navigator.vibrate(18);
@@ -2077,6 +2166,8 @@ window.openApp = id=>{
   if(id==="textsApp")      renderTextsApp();
   if(id==="chatApp"){
     renderChats(); unreadCount=0; showHomeTypingBar(false);
+    /* ⚡ 进入聊天时重启对方时间计时器 */
+    startOppTimeTicker();
     if((replyTimer)&&!typingNode){
       const f=document.getElementById("chatFlow");
       if(f){
@@ -2089,7 +2180,7 @@ window.openApp = id=>{
     }
   }
 };
-window.closeApp = id=>{ document.getElementById(id).classList.remove("active"); if(currentApp===id){currentApp=null;setDockActive(""); if(id==="chatApp"){ if(typingNode){typingNode.remove();typingNode=null;} if(replyTimer) showHomeTypingBar(true); }} };
+window.closeApp = id=>{ document.getElementById(id).classList.remove("active"); if(currentApp===id){currentApp=null;setDockActive(""); if(id==="chatApp"){ if(typingNode){typingNode.remove();typingNode=null;} if(replyTimer) showHomeTypingBar(true); /* ⚡ 离开聊天时停止对方时间计时器 */ if(_oppTimeTicker){clearInterval(_oppTimeTicker);_oppTimeTicker=null;} }} };
 
 // ═══════════════════════════════════════
 //  🎵 云端音乐系统 · 轻量化缓存 + 随机播放 + 歌词同步
@@ -3172,6 +3263,7 @@ window.openTxtIO = () => {
 
 // ─── Welcome ───
 // ─── Welcome canvas particles + typographic animation ───
+let _welcomeRaf = null;
 function initWelcomeParticles() {
   const canvas = document.getElementById("wCanvas");
   if (!canvas) return;
@@ -3182,7 +3274,8 @@ function initWelcomeParticles() {
   const isDark = document.documentElement.getAttribute("data-theme") !== "light";
   const color = isDark ? "255,255,255" : "0,0,0";
 
-  const pts = Array.from({ length: 55 }, () => ({
+  // ⚡ 降低粒子数：25 粒子 → 300 次/帧比较（原 55 粒子 → 1485 次）
+  const pts = Array.from({ length: 25 }, () => ({
     x: Math.random() * canvas.width,
     y: Math.random() * canvas.height,
     r: Math.random() * 1.2 + .3,
@@ -3191,7 +3284,6 @@ function initWelcomeParticles() {
     o: Math.random() * .5 + .2
   }));
 
-  let raf;
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     pts.forEach(p => {
@@ -3205,27 +3297,30 @@ function initWelcomeParticles() {
       ctx.fillStyle = `rgba(${color},${p.o})`;
       ctx.fill();
     });
+    // ⚡ 缩小连线的距离阈值，减少绘制调用
     for (let i = 0; i < pts.length; i++) {
       for (let j = i + 1; j < pts.length; j++) {
         const dx = pts[i].x - pts[j].x;
         const dy = pts[i].y - pts[j].y;
         const d  = Math.sqrt(dx*dx + dy*dy);
-        if (d < 80) {
+        if (d < 55) {
           ctx.beginPath();
           ctx.moveTo(pts[i].x, pts[i].y);
           ctx.lineTo(pts[j].x, pts[j].y);
-          ctx.strokeStyle = `rgba(${color},${.10 * (1 - d/80)})`;
+          ctx.strokeStyle = `rgba(${color},${.10 * (1 - d/55)})`;
           ctx.lineWidth = .5;
           ctx.stroke();
         }
       }
     }
-    raf = requestAnimationFrame(draw);
+    _welcomeRaf = requestAnimationFrame(draw);
   }
   draw();
-  document.getElementById("welcome").addEventListener("click", () => {
-    cancelAnimationFrame(raf);
-  }, { once: true });
+  // ⚡ 欢迎页关闭时（点击或自动）停止 canvas 动画
+  const stopWelcomeRaf = () => {
+    if (_welcomeRaf) { cancelAnimationFrame(_welcomeRaf); _welcomeRaf = null; }
+  };
+  document.getElementById("welcome").addEventListener("click", stopWelcomeRaf, { once: true });
 
   // ── 字符排版初始化 ──
   buildTypoWelcome();
@@ -3426,7 +3521,7 @@ function buildTypoWelcome() {
   stage.appendChild(seal);
 }
 // 3秒后自动进入，无需点击
-setTimeout(()=>{ const w=document.getElementById("welcome"); if(!w||w.classList.contains("gone"))return; w.classList.add("gone"); setTimeout(()=>w.style.display="none",800); chime(); },3000);
+setTimeout(()=>{ const w=document.getElementById("welcome"); if(!w||w.classList.contains("gone"))return; w.classList.add("gone"); setTimeout(()=>w.style.display="none",800); if(_welcomeRaf){cancelAnimationFrame(_welcomeRaf);_welcomeRaf=null;} chime(); },3000);
 document.getElementById("welcome").addEventListener("click",()=>{ const w=document.getElementById("welcome"); if(w.classList.contains("gone"))return; w.classList.add("gone"); setTimeout(()=>w.style.display="none",800); chime(); });
 
 document.addEventListener("DOMContentLoaded", init);

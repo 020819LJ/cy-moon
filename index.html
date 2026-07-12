@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,minimum-scale=1">
 <title>幸逢</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="https://i.postimg.cc/281KzSNY/IMG-3531.jpg">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="style.css">
@@ -42,14 +43,14 @@
       请输入解密钥匙以开启。
       <span class="warning-text">※ 请勿向他人公开或泄露钥匙，一经发现将立即更换。频繁泄露将停止分享，请理解与配合。</span>
     </div>
-    <div class="lock-input-wrap">
+    <form class="lock-input-wrap" onsubmit="checkLock();return false;">
       <input type="password" id="lockInput" class="lock-input" placeholder="Enter key..." onkeydown="if(event.key==='Enter')checkLock()">
       <button class="lock-btn-submit" onclick="checkLock()">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       </button>
-    </div>
+    </form>
     <div id="lockError" class="lock-error"></div>
   </div>
 </div>
@@ -403,7 +404,7 @@
     </div>
 
     <div class="search-pane" id="searchPane">
-      <input id="chatSearch" placeholder="…" oninput="doSearchChat()">
+      <input id="chatSearch" placeholder="…" oninput="doSearchChatDebounced()">
       <div class="res" id="searchRes"></div>
     </div>
 
@@ -549,7 +550,7 @@
         <div class="cards-toolbar">
           <div class="search-bar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="cardSearch" placeholder="…" oninput="renderCards()">
+            <input id="cardSearch" placeholder="…" oninput="renderCardsDebounced()">
           </div>
         </div>
         <div class="deck" id="cardDeck"></div>
@@ -1049,6 +1050,27 @@
             <div class="snav-item" onclick="openBackup()">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>导入 / 导出</span>
+              <svg class="cfg-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="sblock">
+          <div class="sblock-label">存储管理</div>
+          <div class="snav-list">
+            <div class="snav-item" onclick="showStorageInfo()">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <span>查看存储用量</span>
+              <svg class="cfg-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="snav-item" onclick="trimOldChats()">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              <span>保留最近2000条聊天</span>
+              <svg class="cfg-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="snav-item" onclick="clearTTSCache()">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+              <span>清除TTS语音缓存</span>
               <svg class="cfg-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
           </div>
