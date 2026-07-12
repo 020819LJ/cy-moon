@@ -2168,6 +2168,11 @@ function toast(t, type = "default") {
 function setDockActive(id){ document.querySelectorAll(".dock-btn").forEach(b=>b.classList.toggle("active",b.dataset.app===id)); }
 window.openApp = id=>{
   const el=document.getElementById(id); if(!el) return;
+  // ⚡ 先关闭之前活跃的 app，避免多个 app 同时叠加
+  if(currentApp && currentApp !== id){
+    const prev=document.getElementById(currentApp);
+    if(prev) prev.classList.remove("active");
+  }
   el.classList.add("active"); currentApp=id; setDockActive(id);
   if(id==="cardsApp")      { window.renderCards(); window.renderStickers(); }
   if(id==="groupApp")      window.renderMembers();

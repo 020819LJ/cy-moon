@@ -38,6 +38,8 @@
   }
   
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  /* ⭐ 全局：按钮内的 SVG 不拦截触摸事件，确保整个按钮区域可点击 */
+  button svg, .back svg, .dock-btn svg { pointer-events: none; }
   /* ⭐ 移动端适配：使用 dvh 动态视口高度，兼容 iOS Safari 底部工具栏 */
   html, body { height: 100dvh; height: -webkit-fill-available; width: 100%; overflow: hidden; }
   body { background: #111; font-family: var(--font); color: var(--text); display: flex; justify-content: center; align-items: center; font-size: var(--fs); }
