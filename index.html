@@ -137,9 +137,13 @@
             <div class="m-title editable" data-key="l1_song" placeholder="未定义"></div>
             <div class="m-sub editable" data-key="l1_artist" placeholder="未定义"></div>
           </div>
+          <div class="m-lrc" id="mCardLrc"><span class="m-lrc-text"></span></div>
           <div class="m-right">
             <div class="m-eq" id="musicEq"><span></span><span></span><span></span><span></span></div>
-            <button class="play-btn" id="musicPlay">
+            <button class="music-next-btn" id="musicNextBtn" onclick="event.stopPropagation();musicNext()" title="下一首">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4 4 17 12 4 20 4 4"/><line x1="20" y1="5" x2="20" y2="19"/></svg>
+            </button>
+            <button class="play-btn" id="musicPlay" onclick="event.stopPropagation()">
               <svg viewBox="0 0 24 24"><g id="playIcon"><polygon points="5 4 21 12 5 20 5 4" fill="currentColor"/></g></svg>
             </button>
           </div>
@@ -1386,6 +1390,43 @@ document.getElementById('settingsApp').addEventListener('transitionend', functio
   document.querySelectorAll('input[name="cs"]').forEach(r => { r.checked = +r.value === cfg.chatStyle; });
 });
 </script>
+
+<!-- ═══ 音乐播放窗口 ═══ -->
+<div class="music-player" id="musicPlayer">
+  <div class="mp-mask" onclick="closeMusicPlayer()"></div>
+  <div class="mp-panel">
+    <div class="mp-h">
+      <span class="mp-h-title">正在播放</span>
+      <button class="mp-close" onclick="closeMusicPlayer()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="mp-info">
+      <div class="mp-title" id="mpTitle">未选择</div>
+      <div class="mp-artist" id="mpArtist">—</div>
+      <div class="mp-count" id="mpCount"></div>
+    </div>
+    <!-- 歌词区 -->
+    <div class="mp-lrc-wrap">
+      <div class="mp-lrc-body" id="mpLrcBody">
+        <div class="mp-lrc-empty">暂无歌词</div>
+      </div>
+    </div>
+    <!-- 控制按钮 -->
+    <div class="mp-ctrls">
+      <button class="mp-btn" onclick="musicPrev()" title="上一首">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="20 4 7 12 20 20 20 4"/><line x1="4" y1="5" x2="4" y2="19"/></svg>
+      </button>
+      <button class="mp-play" id="mpPlay" onclick="mpTogglePlay()">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="5 4 21 12 5 20 5 4"/></svg>
+      </button>
+      <button class="mp-btn" onclick="musicNext()" title="下一首">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4 4 17 12 4 20 4 4"/><line x1="20" y1="5" x2="20" y2="19"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
 
