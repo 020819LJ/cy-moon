@@ -38,21 +38,35 @@
   }
   
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; width: 100%; overflow: hidden; }
+  /* ⭐ 原始代码：html, body { height: 100%; width: 100%; overflow: hidden; } */
+  /* ⭐ 使用 dvh 确保键盘弹出时根元素高度正确响应 */
+  html, body { height: 100%; height: 100dvh; width: 100%; overflow: hidden; }
   body { background: #111; font-family: var(--font); color: var(--text); display: flex; justify-content: center; align-items: center; font-size: var(--fs); }
   button, input, select, textarea { font-family: inherit; color: inherit; }
   img { display: block; max-width: 100%; -webkit-user-drag: none; }
   .hidden { display: none !important; }
   
   /* â”€â”€â”€ Viewport â”€â”€ */
+  /* ⭐ 原始代码：
   .viewport {
     width: 100%; max-width: 430px; height: 100%;
     background: var(--bg); position: relative;
     display: flex; flex-direction: column; overflow: hidden;
     transition: background .4s var(--ease);
   }
+  */
+  /* ⭐ 使用 dvh 动态视口高度，键盘弹出时 viewport 会自动缩小，
+       从而使 .chat-flow 可见区域上移，最新消息始终可见 */
+  .viewport {
+    width: 100%; max-width: 430px;
+    height: 100%; height: 100dvh;
+    background: var(--bg); position: relative;
+    display: flex; flex-direction: column; overflow: hidden;
+    transition: background .4s var(--ease);
+  }
   @media(min-width:480px) {
-    .viewport { height: 94vh; border-radius: 32px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+    /* ⭐ 原始代码：.viewport { height: 94vh; border-radius: 32px; box-shadow: 0 30px 80px rgba(0,0,0,.5); } */
+    .viewport { height: 94vh; height: 94dvh; border-radius: 32px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
   }
   /* ⭐ 小屏设备进一步压缩主页面间距 */
   @media(max-height:700px) {
@@ -840,7 +854,8 @@
   #chatApp[data-hasbg="0"] .chat-bg-layer { display:none; }
   .chat-head { flex-shrink:0; position:relative; z-index:5; background:var(--glass); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
   .chat-head::after { content:""; position:absolute; left:0; right:0; bottom:-24px; height:24px; background:linear-gradient(180deg,var(--glass) 0%,transparent 100%); pointer-events:none; z-index:1; }
-  .chat-input { flex-shrink:0; position:relative; z-index:5; background:var(--glass); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
+  /* ⭐ 新增 safe-area-inset-bottom 适配刘海屏，原始代码见上一行注释 */
+  .chat-input { flex-shrink:0; position:relative; z-index:5; background:var(--glass); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); padding-bottom:env(safe-area-inset-bottom,0px); }
   .chat-input::before { content:""; position:absolute; left:0; right:0; top:-24px; height:24px; background:linear-gradient(0deg,var(--glass) 0%,transparent 100%); pointer-events:none; z-index:1; }
   .chat-flow { flex:1; overflow-y:auto; padding:8px 14px 4px; display:flex; flex-direction:column; gap:10px; background:transparent; position:relative; z-index:2; }
   .chat-flow::-webkit-scrollbar { width:0; }

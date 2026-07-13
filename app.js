@@ -1196,9 +1196,46 @@ function jumpToMsg(t){
 }
 
 function bindChatScroll(){ document.getElementById("chatFlow").addEventListener("scroll",()=>{ const f=document.getElementById("chatFlow"); if(f.scrollHeight-f.scrollTop-f.clientHeight<60) unreadCount=0; updateScrollBot(); }); }
+/* ⭐ 原始代码：
 function updateScrollBot(){ const f=document.getElementById("chatFlow"); if(!f) return; const near=f.scrollHeight-f.scrollTop-f.clientHeight<60; document.getElementById("scrollBot").classList.toggle("on",!near&&chats.length>5); const ub=document.getElementById("unreadBadge"); if(unreadCount>0&&!near){ub.classList.remove("hidden");ub.innerText=unreadCount;}else ub.classList.add("hidden"); }
+*/
+/* ⭐ 标记用户是否在底部，用于键盘弹出时判断是否需要重新滚底 */
+let _wasNearBottom = true;
+function updateScrollBot(){ const f=document.getElementById("chatFlow"); if(!f) return; const near=f.scrollHeight-f.scrollTop-f.clientHeight<60; _wasNearBottom=near; document.getElementById("scrollBot").classList.toggle("on",!near&&chats.length>5); const ub=document.getElementById("unreadBadge"); if(unreadCount>0&&!near){ub.classList.remove("hidden");ub.innerText=unreadCount;}else ub.classList.add("hidden"); }
 window.scrollChatBottom = ()=>{ const f=document.getElementById("chatFlow"); f.scrollTo({top:f.scrollHeight,behavior:"smooth"}); unreadCount=0; };
 function getActiveInput(){ return document.querySelector(`.input-style-${cfg.chatStyle}:not(.hidden) .msg-in`); }
+
+/* ⭐ 新增：键盘弹出时自动滚动聊天到最底部，确保最新消息可见 */
+let _kbScrollTimer = null;
+function _handleKeyboardScroll() {
+  const f = document.getElementById("chatFlow");
+  if (!f || !document.getElementById("chatApp").classList.contains("active")) return;
+  // 如果用户之前在底部附近，键盘弹出后重新滚到底部
+  if (_wasNearBottom) {
+    // 使用 requestAnimationFrame 等待布局稳定后再滚动
+    if (_kbScrollTimer) cancelAnimationFrame(_kbScrollTimer);
+    _kbScrollTimer = requestAnimationFrame(() => {
+      const f2 = document.getElementById("chatFlow");
+      if (f2) f2.scrollTop = f2.scrollHeight;
+    });
+  }
+}
+/* ⭐ visualViewport：监听键盘弹出/收起导致的视口变化 */
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", _handleKeyboardScroll);
+}
+/* ⭐ 输入框获得焦点时（键盘弹出），延迟滚动到底部 */
+document.addEventListener("focusin", (e) => {
+  if (e.target.classList.contains("msg-in")) {
+    // 键盘动画通常需要 200-350ms，延迟确保滚动在布局完成后执行
+    setTimeout(() => {
+      const f = document.getElementById("chatFlow");
+      if (f && document.getElementById("chatApp").classList.contains("active")) {
+        f.scrollTop = f.scrollHeight;
+      }
+    }, 300);
+  }
+});
 
 // ─── Send ───
 window.sendMsg = async()=>{
@@ -1213,7 +1250,12 @@ window.sendMsg = async()=>{
   if(navigator.vibrate) navigator.vibrate(18);
   const _sb=document.querySelector('.input-style-1:not(.hidden) .in-btn.send,.input-style-2:not(.hidden) .i2-send,.input-style-3:not(.hidden) .i3-send:not(.alt),.input-style-4:not(.hidden) .i4-send:not(.alt)');
   if(_sb){_sb.classList.add('sent-flash');setTimeout(()=>_sb.classList.remove('sent-flash'),400);}
-  await saveAll(); appendNewChats(); getActiveInput()?.focus();
+  /* ⭐ 原始代码：await saveAll(); appendNewChats(); getActiveInput()?.focus(); */
+  await saveAll(); appendNewChats();
+  /* ⭐ 发送后强制滚到底部，确保最新消息可见 */
+  const cf=document.getElementById("chatFlow"); if(cf) cf.scrollTop=cf.scrollHeight;
+  /* ⭐ 发送后让输入框失焦，收起键盘，使用户可以完整看到聊天内容 */
+  getActiveInput()?.blur();
   // 用户发消息后，彼按概率自动回复（replyProb: 0-100，默认60%）
   if(!replyTimer && !typingNode && Math.random() * 100 < (cfg.replyProb ?? 60)){
     scheduleReply(/*isAuto=*/true);
